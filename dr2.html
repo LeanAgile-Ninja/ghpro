@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DR2 – Tempo Dostarczania (10-dniowe okresy, XmR)</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #f4f6f9;
+      color: #333;
+      padding: 24px;
+    }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: #1a2940;
+    }
+    .subtitle {
+      font-size: 0.9rem;
+      color: #666;
+      margin-bottom: 24px;
+    }
+    .stats-row {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 14px 22px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      min-width: 130px;
+    }
+    .stat-card .label {
+      font-size: 0.75rem;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
+    }
+    .stat-card .value {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #1a2940;
+    }
+    .stat-card .unit {
+      font-size: 0.8rem;
+      color: #888;
+      margin-left: 3px;
+    }
+    .chart-card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 24px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      margin-bottom: 24px;
+    }
+    .chart-card h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: #1a2940;
+    }
+    .chart-container {
+      position: relative;
+      height: 360px;
+    }
+    .legend-row {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.82rem;
+      color: #555;
+    }
+    .legend-dot {
+      width: 14px;
+      height: 3px;
+      border-radius: 2px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>DR2 – Tempo Dostarczania (10-dniowe okresy, XmR)</h1>
+  <p class="subtitle">Dane zagregowane w pełne 10-dniowe okresy, źródło: 4. Tempo dostarczania dzienne.csv</p>
+
+  <div class="stats-row" id="statsRow"></div>
+
+  <div class="chart-card">
+    <h2>Wykres przebiegu (X) – suma zadań na okres 10-dniowy</h2>
+    <div class="chart-container">
+      <canvas id="runChart"></canvas>
+    </div>
+    <div class="legend-row">
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#3b82f6;"></div>
+        Przepustowość (10 dni)
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#10b981;"></div>
+        Mediana (X̃)
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="border-top: 2px dashed #ef4444; background:transparent;"></div>
+        UNPL / LNPL
+      </div>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <h2>Wykres zakresów kroczących (MR)</h2>
+    <div class="chart-container">
+      <canvas id="mrChart"></canvas>
+    </div>
+    <div class="legend-row">
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#8b5cf6;"></div>
+        Zakres kroczący (MR)
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#10b981;"></div>
+        Mediana MR̃
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="border-top: 2px dashed #ef4444; background:transparent;"></div>
+        URL (3,27 × MR̃)
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="border-top: 2px dashed #f59e0b; background:transparent;"></div>
+        LRL = 0
+      </div>
+    </div>
+  </div>
+
+<script>
+  const raw = [
+    {date:"07.01.2025", v:0},
+    {date:"08.01.2025", v:2},
+    {date:"09.01.2025", v:10},
+    {date:"10.01.2025", v:3},
+    {date:"11.01.2025", v:0},
+    {date:"12.01.2025", v:0},
+    {date:"13.01.2025", v:2},
+    {date:"14.01.2025", v:3},
+    {date:"15.01.2025", v:7},
+    {date:"16.01.2025", v:0},
+    {date:"17.01.2025", v:0},
+    {date:"18.01.2025", v:0},
+    {date:"19.01.2025", v:0},
+    {date:"20.01.2025", v:5},
+    {date:"21.01.2025", v:2},
+    {date:"22.01.2025", v:0},
+    {date:"23.01.2025", v:0},
+    {date:"24.01.2025", v:0},
+    {date:"25.01.2025", v:0},
+    {date:"26.01.2025", v:0},
+    {date:"27.01.2025", v:1},
+    {date:"28.01.2025", v:1},
+    {date:"29.01.2025", v:0},
+    {date:"30.01.2025", v:5},
+    {date:"31.01.2025", v:4},
+    {date:"01.02.2025", v:0},
+    {date:"02.02.2025", v:0},
+    {date:"03.02.2025", v:7},
+    {date:"04.02.2025", v:0},
+    {date:"05.02.2025", v:2},
+    {date:"06.02.2025", v:2},
+    {date:"07.02.2025", v:12},
+    {date:"08.02.2025", v:0},
+    {date:"09.02.2025", v:0},
+    {date:"10.02.2025", v:1},
+    {date:"11.02.2025", v:0},
+    {date:"12.02.2025", v:0},
+    {date:"13.02.2025", v:2},
+    {date:"14.02.2025", v:12},
+    {date:"15.02.2025", v:0},
+    {date:"16.02.2025", v:0},
+    {date:"17.02.2025", v:1},
+    {date:"18.02.2025", v:0},
+    {date:"19.02.2025", v:0},
+    {date:"20.02.2025", v:3},
+    {date:"21.02.2025", v:11},
+    {date:"22.02.2025", v:0},
+    {date:"23.02.2025", v:0},
+    {date:"24.02.2025", v:6},
+    {date:"25.02.2025", v:0},
+    {date:"26.02.2025", v:0},
+    {date:"27.02.2025", v:6},
+    {date:"28.02.2025", v:7},
+    {date:"01.03.2025", v:0},
+    {date:"02.03.2025", v:0},
+    {date:"03.03.2025", v:2},
+    {date:"04.03.2025", v:0},
+    {date:"05.03.2025", v:0},
+    {date:"06.03.2025", v:3},
+    {date:"07.03.2025", v:5},
+    {date:"08.03.2025", v:0},
+    {date:"09.03.2025", v:0},
+    {date:"10.03.2025", v:1},
+    {date:"11.03.2025", v:0},
+    {date:"12.03.2025", v:0},
+    {date:"13.03.2025", v:9},
+    {date:"14.03.2025", v:7},
+    {date:"15.03.2025", v:0},
+    {date:"16.03.2025", v:0},
+    {date:"17.03.2025", v:3},
+    {date:"18.03.2025", v:0},
+    {date:"19.03.2025", v:0},
+    {date:"20.03.2025", v:4},
+    {date:"21.03.2025", v:10},
+    {date:"22.03.2025", v:0},
+    {date:"23.03.2025", v:0},
+    {date:"24.03.2025", v:1},
+    {date:"25.03.2025", v:0},
+    {date:"26.03.2025", v:0},
+    {date:"27.03.2025", v:5},
+    {date:"28.03.2025", v:1},
+    {date:"29.03.2025", v:0},
+    {date:"30.03.2025", v:0},
+    {date:"31.03.2025", v:2},
+    {date:"01.04.2025", v:0},
+    {date:"02.04.2025", v:0},
+    {date:"03.04.2025", v:2},
+    {date:"04.04.2025", v:11},
+    {date:"05.04.2025", v:0},
+    {date:"06.04.2025", v:0},
+    {date:"07.04.2025", v:1},
+    {date:"08.04.2025", v:0},
+    {date:"09.04.2025", v:0},
+    {date:"10.04.2025", v:5},
+    {date:"11.04.2025", v:2},
+    {date:"12.04.2025", v:0},
+    {date:"13.04.2025", v:0},
+    {date:"14.04.2025", v:1},
+    {date:"15.04.2025", v:0},
+    {date:"16.04.2025", v:0},
+    {date:"17.04.2025", v:4},
+    {date:"18.04.2025", v:7},
+    {date:"19.04.2025", v:0},
+  ];
+
+  // ── Aggregate into complete 10-day periods ────────────────────────────────
+  const PERIOD = 10;
+  const fullPeriods = Math.floor(raw.length / PERIOD);
+  const periods = [];
+  for (let i = 0; i < fullPeriods; i++) {
+    const slice = raw.slice(i * PERIOD, i * PERIOD + PERIOD);
+    const sum = slice.reduce((a, r) => a + r.v, 0);
+    const label = slice[0].date + ' – ' + slice[PERIOD - 1].date;
+    periods.push({ label, sum });
+  }
+
+  const pn = periods.length;
+  const vals = periods.map(p => p.sum);
+  const pLabels = periods.map(p => p.label);
+
+  // Helper: median of an array
+  function median(arr) {
+    const s = [...arr].sort((a, b) => a - b);
+    const mid = Math.floor(s.length / 2);
+    return s.length % 2 === 0 ? (s[mid - 1] + s[mid]) / 2 : s[mid];
+  }
+
+  const medX = median(vals);
+
+  // Moving ranges
+  const mrs = [];
+  for (let i = 1; i < pn; i++) mrs.push(Math.abs(vals[i] - vals[i - 1]));
+  const medMR = median(mrs);
+
+  // X-chart control limits (median-based)
+  const unpl = medX + 2.66 * medMR;
+  const lnpl = Math.max(0, medX - 2.66 * medMR);
+
+  // MR-chart control limit (median-based)
+  const url = 3.27 * medMR;
+  const lrl = 0;
+
+  // Stats cards
+  const stats = [
+    {label: "Pełne okresy",       value: pn,               unit: "× 10 dni"},
+    {label: "Mediana (X̃)",        value: medX.toFixed(2),  unit: "zad/10 dni"},
+    {label: "Mediana MR̃",         value: medMR.toFixed(2), unit: ""},
+    {label: "UNPL",                value: unpl.toFixed(2),  unit: "zad/10 dni"},
+    {label: "LNPL",                value: lnpl.toFixed(2),  unit: "zad/10 dni"},
+    {label: "URL (MR)",            value: url.toFixed(2),   unit: ""},
+    {label: "Min (10 dni)",        value: Math.min(...vals), unit: "zad"},
+    {label: "Max (10 dni)",        value: Math.max(...vals), unit: "zad"},
+  ];
+  const row = document.getElementById('statsRow');
+  stats.forEach(s => {
+    row.innerHTML += `
+      <div class="stat-card">
+        <div class="label">${s.label}</div>
+        <div class="value">${s.value}<span class="unit">${s.unit}</span></div>
+      </div>`;
+  });
+
+  Chart.register(window['chartjs-plugin-annotation']);
+
+  // ── X chart ──────────────────────────────────────────────────────────────
+  new Chart(document.getElementById('runChart'), {
+    type: 'line',
+    data: {
+      labels: pLabels,
+      datasets: [
+        {
+          label: 'Przepustowość (10 dni)',
+          data: vals,
+          borderColor: '#3b82f6',
+          backgroundColor: 'rgba(59,130,246,0.12)',
+          borderWidth: 2,
+          pointRadius: 6,
+          pointBackgroundColor: vals.map(v => (v > unpl || v < lnpl) ? '#ef4444' : '#3b82f6'),
+          pointBorderColor: '#fff',
+          pointBorderWidth: 1.5,
+          tension: 0.3,
+          fill: false,
+          order: 1,
+        },
+        {
+          label: 'Mediana (X̃)',
+          data: Array(pn).fill(medX),
+          borderColor: '#10b981',
+          borderWidth: 2,
+          pointRadius: 0,
+          fill: false,
+          order: 2,
+        },
+        {
+          label: 'UNPL',
+          data: Array(pn).fill(unpl),
+          borderColor: '#ef4444',
+          borderWidth: 2,
+          borderDash: [6, 4],
+          pointRadius: 0,
+          fill: false,
+          order: 3,
+        },
+        {
+          label: 'LNPL',
+          data: Array(pn).fill(lnpl),
+          borderColor: '#ef4444',
+          borderWidth: 2,
+          borderDash: [6, 4],
+          pointRadius: 0,
+          fill: false,
+          order: 4,
+        },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: (items) => `Okres: ${pLabels[items[0].dataIndex]}`,
+            label: (item) => {
+              if (item.datasetIndex === 0) return ` Przepustowość: ${item.raw} zad`;
+              if (item.datasetIndex === 1) return ` Mediana (X̃): ${item.raw.toFixed(2)} zad`;
+              if (item.datasetIndex === 2) return ` UNPL: ${item.raw.toFixed(2)} zad`;
+              if (item.datasetIndex === 3) return ` LNPL: ${item.raw.toFixed(2)} zad`;
+              return ` ${item.dataset.label}: ${item.raw}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          title: { display: true, text: 'Okres (10 dni)', font: { size: 12 }, color: '#666' },
+          ticks: { color: '#666', maxRotation: 30, autoSkip: false },
+          grid: { color: 'rgba(0,0,0,0.05)' }
+        },
+        y: {
+          title: { display: true, text: 'Przepustowość (zadań / 10 dni)', font: { size: 12 }, color: '#666' },
+          ticks: { color: '#666' },
+          grid: { color: 'rgba(0,0,0,0.07)' },
+          min: 0,
+        }
+      }
+    }
+  });
+
+  // ── MR chart ─────────────────────────────────────────────────────────────
+  const mrLabels = pLabels.slice(1);
+
+  new Chart(document.getElementById('mrChart'), {
+    type: 'line',
+    data: {
+      labels: mrLabels,
+      datasets: [
+        {
+          label: 'Zakres kroczący (MR)',
+          data: mrs,
+          borderColor: '#8b5cf6',
+          backgroundColor: 'rgba(139,92,246,0.10)',
+          borderWidth: 2,
+          pointRadius: 6,
+          pointBackgroundColor: mrs.map(v => v > url ? '#ef4444' : '#8b5cf6'),
+          pointBorderColor: '#fff',
+          pointBorderWidth: 1.5,
+          tension: 0.3,
+          fill: false,
+          order: 1,
+        },
+        {
+          label: 'Mediana MR̃',
+          data: Array(mrs.length).fill(medMR),
+          borderColor: '#10b981',
+          borderWidth: 2,
+          pointRadius: 0,
+          fill: false,
+          order: 2,
+        },
+        {
+          label: 'URL',
+          data: Array(mrs.length).fill(url),
+          borderColor: '#ef4444',
+          borderWidth: 2,
+          borderDash: [6, 4],
+          pointRadius: 0,
+          fill: false,
+          order: 3,
+        },
+        {
+          label: 'LRL',
+          data: Array(mrs.length).fill(lrl),
+          borderColor: '#f59e0b',
+          borderWidth: 2,
+          borderDash: [6, 4],
+          pointRadius: 0,
+          fill: false,
+          order: 4,
+        },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: (items) => `Okres: ${mrLabels[items[0].dataIndex]}`,
+            label: (item) => {
+              if (item.datasetIndex === 0) return ` MR: ${item.raw.toFixed(2)}`;
+              if (item.datasetIndex === 1) return ` Mediana MR̃: ${item.raw.toFixed(2)}`;
+              if (item.datasetIndex === 2) return ` URL: ${item.raw.toFixed(2)}`;
+              if (item.datasetIndex === 3) return ` LRL: ${item.raw.toFixed(2)}`;
+              return ` ${item.dataset.label}: ${item.raw}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          title: { display: true, text: 'Okres (10 dni)', font: { size: 12 }, color: '#666' },
+          ticks: { color: '#666', maxRotation: 30, autoSkip: false },
+          grid: { color: 'rgba(0,0,0,0.05)' }
+        },
+        y: {
+          title: { display: true, text: 'Zakres kroczący', font: { size: 12 }, color: '#666' },
+          ticks: { color: '#666' },
+          grid: { color: 'rgba(0,0,0,0.07)' },
+          min: 0,
+        }
+      }
+    }
+  });
+</script>
+</body>
+</html>
