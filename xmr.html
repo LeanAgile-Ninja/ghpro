@@ -409,7 +409,7 @@
           order: 1,
         },
         {
-          label: 'Mediana / ±1σ górna',
+          label: '±1σ górna',
           data: Array(n).fill(sigma1Upper),
           borderColor: '#f59e0b',
           borderWidth: 1,
@@ -489,18 +489,20 @@
           callbacks: {
             title: (items) => {
               const i = items[0].dataIndex;
-              const signalLabels = ['', ' 🟣 Trend', ' 🟡 Umiark. trwały', ' 🟠 Umiarkowany', ' 🔴 Silny sygnał'];
-              return `Zadanie #${raw[i].id}  (${tooltipDates[i]})${signalLabels[signals[i]]}`;
+              const signalLabel = ruleInfo.find(r => r.level === signals[i]);
+              const tag = signalLabel ? ` — ${signalLabel.desc.split(' – ')[0]}` : '';
+              return `Zadanie #${raw[i].id}  (${tooltipDates[i]})${tag}`;
             },
             label: (item) => {
-              if (item.datasetIndex === 0) return ` Czas realizacji: ${item.raw} dni`;
-              if (item.datasetIndex === 5) return ` Średnia (X̄): ${item.raw.toFixed(1)} dni`;
-              if (item.datasetIndex === 6) return ` UNPL: ${item.raw.toFixed(1)} dni`;
-              if (item.datasetIndex === 7) return ` LNPL: ${item.raw.toFixed(1)} dni`;
+              const lbl = item.dataset.label;
+              if (lbl === 'Czas realizacji') return ` Czas realizacji: ${item.raw} dni`;
+              if (lbl === 'Średnia (X̄)') return ` Średnia (X̄): ${item.raw.toFixed(1)} dni`;
+              if (lbl === 'UNPL') return ` UNPL: ${item.raw.toFixed(1)} dni`;
+              if (lbl === 'LNPL') return ` LNPL: ${item.raw.toFixed(1)} dni`;
               return null;
             }
           },
-          filter: item => [0, 5, 6, 7].includes(item.datasetIndex),
+          filter: item => ['Czas realizacji', 'Średnia (X̄)', 'UNPL', 'LNPL'].includes(item.dataset.label),
         }
       },
       scales: {
