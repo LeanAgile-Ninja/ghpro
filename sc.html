@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scatterplot Czasów Realizacji</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #f4f6fb;
+      color: #2d3748;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: #1a202c;
+      letter-spacing: -0.3px;
+    }
+
+    .subtitle {
+      font-size: 0.9rem;
+      color: #718096;
+      margin-bottom: 28px;
+    }
+
+    .dashboard {
+      background: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      padding: 28px 32px;
+      width: 100%;
+      max-width: 980px;
+    }
+
+    .chart-row {
+      display: flex;
+      gap: 24px;
+      align-items: flex-start;
+    }
+
+    .chart-wrap {
+      flex: 1;
+      min-width: 0;
+      position: relative;
+      height: 420px;
+    }
+
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      min-width: 190px;
+    }
+
+    .legend-box, .controls-box {
+      background: #f8f9fc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+
+    .legend-box h3, .controls-box h3 {
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: #a0aec0;
+      margin-bottom: 10px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin-bottom: 7px;
+      font-size: 0.88rem;
+      color: #4a5568;
+    }
+
+    .legend-dot {
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .pctl-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 0.86rem;
+      color: #4a5568;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .pctl-item input[type="checkbox"] {
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--color);
+      border-radius: 4px;
+      background: #fff;
+      cursor: pointer;
+      position: relative;
+      flex-shrink: 0;
+      transition: background 0.15s;
+    }
+
+    .pctl-item input[type="checkbox"]:checked {
+      background: var(--color);
+    }
+
+    .pctl-item input[type="checkbox"]:checked::after {
+      content: '✓';
+      position: absolute;
+      color: #fff;
+      font-size: 11px;
+      line-height: 1;
+      top: 1px;
+      left: 2px;
+    }
+
+    .pctl-dash {
+      display: inline-block;
+      width: 20px;
+      height: 3px;
+      border-radius: 2px;
+      background: var(--color);
+      flex-shrink: 0;
+    }
+
+    .pctl-dash.dashed {
+      height: 0;
+      background: transparent;
+      border-top: 2.5px dashed var(--color);
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 22px;
+    }
+
+    .stat-card {
+      background: #f8f9fc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 12px 14px;
+      text-align: center;
+    }
+
+    .stat-label {
+      font-size: 0.74rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #a0aec0;
+      font-weight: 600;
+    }
+
+    .stat-value {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #2d3748;
+      margin-top: 2px;
+    }
+
+    .stat-unit {
+      font-size: 0.72rem;
+      color: #a0aec0;
+      margin-top: 1px;
+    }
+
+    @media (max-width: 680px) {
+      .chart-row { flex-direction: column; }
+      .sidebar { flex-direction: row; flex-wrap: wrap; min-width: 0; width: 100%; }
+      .legend-box, .controls-box { flex: 1; min-width: 140px; }
+      .stats-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Scatterplot Czasów Realizacji</h1>
+  <p class="subtitle" id="subtitle">Czasy realizacji zgłoszeń w czasie (n = 36)</p>
+
+  <div class="dashboard">
+    <div class="chart-row">
+      <div class="chart-wrap">
+        <canvas id="scChart"></canvas>
+      </div>
+      <div class="sidebar">
+        <div class="legend-box">
+          <h3>Rozmiar</h3>
+          <div class="legend-item">
+            <span class="legend-dot" style="background:#3b82f6;"></span> S – Small
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot" style="background:#10b981;"></span> M – Medium
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot" style="background:#f59e0b;"></span> L – Large
+          </div>
+        </div>
+
+        <div class="controls-box">
+          <h3>Statystyki</h3>
+
+          <label class="pctl-item" style="--color:#6366f1;">
+            <input type="checkbox" id="chk-mean" style="--color:#6366f1;" checked>
+            <span class="pctl-dash" style="--color:#6366f1;"></span>Średnia
+          </label>
+          <label class="pctl-item" style="--color:#f43f5e;">
+            <input type="checkbox" id="chk-p50" style="--color:#f43f5e;" checked>
+            <span class="pctl-dash dashed" style="--color:#f43f5e;"></span>P50 (Mediana)
+          </label>
+          <label class="pctl-item" style="--color:#f97316;">
+            <input type="checkbox" id="chk-p85" style="--color:#f97316;" checked>
+            <span class="pctl-dash dashed" style="--color:#f97316;"></span>P85
+          </label>
+          <label class="pctl-item" style="--color:#8b5cf6;">
+            <input type="checkbox" id="chk-p95" style="--color:#8b5cf6;" checked>
+            <span class="pctl-dash dashed" style="--color:#8b5cf6;"></span>P95
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="stats-grid" id="statsGrid"></div>
+  </div>
+
+  <script>
+    // ── Raw data ──────────────────────────────────────────────────────────────
+    // Dates in ISO format (YYYY-MM-DD), size, days
+    const rawData = [
+      {date:'2024-07-15',size:'S',days:49},
+      {date:'2024-08-22',size:'S',days:48},
+      {date:'2024-09-10',size:'S',days:87},
+      {date:'2024-09-25',size:'M',days:57},
+      {date:'2024-10-05',size:'M',days:148},
+      {date:'2024-10-14',size:'S',days:53},
+      {date:'2024-10-28',size:'S',days:45},
+      {date:'2024-11-18',size:'M',days:145},
+      {date:'2024-12-04',size:'L',days:105},
+      {date:'2025-01-08',size:'S',days:5},
+      {date:'2025-01-20',size:'L',days:163},
+      {date:'2025-02-14',size:'S',days:43},
+      {date:'2025-02-26',size:'M',days:415},
+      {date:'2025-03-15',size:'L',days:123},
+      {date:'2025-04-10',size:'M',days:103},
+      {date:'2025-05-05',size:'L',days:104},
+      {date:'2025-06-12',size:'L',days:302},
+      {date:'2025-06-25',size:'L',days:158},
+      {date:'2025-07-02',size:'L',days:98},
+      {date:'2025-07-11',size:'S',days:52},
+      {date:'2025-07-18',size:'M',days:95},
+      {date:'2025-07-29',size:'S',days:70},
+      {date:'2025-08-03',size:'M',days:95},
+      {date:'2025-08-14',size:'M',days:101},
+      {date:'2025-08-21',size:'M',days:57},
+      {date:'2025-08-29',size:'M',days:57},
+      {date:'2025-09-08',size:'S',days:53},
+      {date:'2025-09-22',size:'L',days:137},
+      {date:'2025-10-04',size:'S',days:73},
+      {date:'2025-10-12',size:'M',days:60},
+      {date:'2025-10-19',size:'S',days:126},
+      {date:'2025-10-27',size:'M',days:57},
+      {date:'2025-11-05',size:'L',days:124},
+      {date:'2025-11-15',size:'M',days:75},
+      {date:'2025-11-25',size:'M',days:89},
+      {date:'2025-12-10',size:'S',days:44},
+    ];
+
+    // ── Stats helpers ─────────────────────────────────────────────────────────
+    function pctValue(sorted, p) {
+      const idx = (p / 100) * (sorted.length - 1);
+      const lo = Math.floor(idx), hi = Math.ceil(idx);
+      return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+    }
+
+    // ── State ─────────────────────────────────────────────────────────────────
+    const visible = { mean: true, p50: true, p85: true, p95: true };
+
+    // ── Split data by size ────────────────────────────────────────────────────
+    function toPoint(d) { return { x: d.date, y: d.days }; }
+
+    const dsS = rawData.filter(d => d.size === 'S').map(toPoint);
+    const dsM = rawData.filter(d => d.size === 'M').map(toPoint);
+    const dsL = rawData.filter(d => d.size === 'L').map(toPoint);
+
+    // ── Build annotations (horizontal lines) ─────────────────────────────────
+    function buildAnnotations() {
+      const allDays = rawData.map(d => d.days).sort((a, b) => a - b);
+      const mean = allDays.reduce((s, v) => s + v, 0) / allDays.length;
+      const p50  = pctValue(allDays, 50);
+      const p85  = pctValue(allDays, 85);
+      const p95  = pctValue(allDays, 95);
+
+      const defs = {
+        mean: { value: mean, color: '#6366f1', label: `Średnia (${mean.toFixed(1)})`, dash: [] },
+        p50:  { value: p50,  color: '#f43f5e', label: `P50 (${p50.toFixed(1)})`,      dash: [6,3] },
+        p85:  { value: p85,  color: '#f97316', label: `P85 (${p85.toFixed(1)})`,      dash: [6,3] },
+        p95:  { value: p95,  color: '#8b5cf6', label: `P95 (${p95.toFixed(1)})`,      dash: [6,3] },
+      };
+
+      const obj = {};
+      Object.entries(defs).forEach(([key, def]) => {
+        if (!visible[key]) return;
+        obj[key] = {
+          type: 'line',
+          yMin: def.value,
+          yMax: def.value,
+          borderColor: def.color,
+          borderWidth: 2,
+          borderDash: def.dash,
+          label: {
+            display: true,
+            content: def.label,
+            backgroundColor: def.color,
+            color: '#fff',
+            font: { size: 11, weight: 'bold' },
+            padding: { x: 6, y: 3 },
+            position: 'end',
+            xAdjust: -6,
+          }
+        };
+      });
+      return obj;
+    }
+
+    // ── Render stats cards ────────────────────────────────────────────────────
+    function renderStats() {
+      const allDays = rawData.map(d => d.days).sort((a, b) => a - b);
+      const mean = allDays.reduce((s, v) => s + v, 0) / allDays.length;
+      const statsToShow = [
+        { label: 'Średnia', value: mean,                       color: '#6366f1' },
+        { label: 'P50',     value: pctValue(allDays, 50),      color: '#f43f5e' },
+        { label: 'P85',     value: pctValue(allDays, 85),      color: '#f97316' },
+        { label: 'P95',     value: pctValue(allDays, 95),      color: '#8b5cf6' },
+      ];
+      const grid = document.getElementById('statsGrid');
+      grid.innerHTML = '';
+      statsToShow.forEach(s => {
+        grid.insertAdjacentHTML('beforeend', `
+          <div class="stat-card">
+            <div class="stat-label" style="color:${s.color}">${s.label}</div>
+            <div class="stat-value">${Math.round(s.value)}</div>
+            <div class="stat-unit">dni</div>
+          </div>
+        `);
+      });
+    }
+
+    // ── Chart ────────────────────────────────────────────────────────────────
+    const ctx = document.getElementById('scChart').getContext('2d');
+
+    const chart = new Chart(ctx, {
+      type: 'scatter',
+      data: {
+        datasets: [
+          {
+            label: 'S – Small',
+            data: dsS,
+            backgroundColor: '#3b82f6cc',
+            borderColor: '#2563eb',
+            borderWidth: 1.5,
+            pointRadius: 7,
+            pointHoverRadius: 9,
+          },
+          {
+            label: 'M – Medium',
+            data: dsM,
+            backgroundColor: '#10b981cc',
+            borderColor: '#059669',
+            borderWidth: 1.5,
+            pointRadius: 7,
+            pointHoverRadius: 9,
+          },
+          {
+            label: 'L – Large',
+            data: dsL,
+            backgroundColor: '#f59e0bcc',
+            borderColor: '#d97706',
+            borderWidth: 1.5,
+            pointRadius: 7,
+            pointHoverRadius: 9,
+          },
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: (items) => {
+                const raw = items[0].raw;
+                const d = new Date(raw.x);
+                return d.toLocaleDateString('pl-PL', { year:'numeric', month:'short', day:'numeric' });
+              },
+              label: (item) => {
+                const size = item.dataset.label;
+                return ` ${size} · ${item.raw.y} dni`;
+              }
+            }
+          },
+          annotation: {
+            annotations: buildAnnotations()
+          }
+        },
+        scales: {
+          x: {
+            type: 'time',
+            time: {
+              unit: 'month',
+              tooltipFormat: 'dd.MM.yyyy',
+              displayFormats: { month: 'MMM yy' }
+            },
+            title: { display: true, text: 'Data ukończenia', font: { size: 12 }, color: '#718096' },
+            grid: { color: '#f0f0f0' },
+            ticks: { color: '#718096', font: { size: 11 } },
+          },
+          y: {
+            title: { display: true, text: 'Czas realizacji (dni)', font: { size: 12 }, color: '#718096' },
+            grid: { color: '#f0f0f0' },
+            ticks: { color: '#718096' },
+            beginAtZero: true,
+          }
+        }
+      }
+    });
+
+    renderStats();
+
+    // ── Checkbox handlers ─────────────────────────────────────────────────────
+    ['mean','p50','p85','p95'].forEach(key => {
+      document.getElementById(`chk-${key}`).addEventListener('change', function() {
+        visible[key] = this.checked;
+        chart.options.plugins.annotation.annotations = buildAnnotations();
+        chart.update();
+      });
+    });
+  </script>
+</body>
+</html>
