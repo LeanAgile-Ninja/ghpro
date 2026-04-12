@@ -1,0 +1,1116 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monte Carlo – Prognoza Backlogu v3</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #f4f6fb;
+      color: #2d3748;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: #1a202c;
+      letter-spacing: -0.3px;
+    }
+
+    .subtitle {
+      font-size: 0.9rem;
+      color: #718096;
+      margin-bottom: 28px;
+    }
+
+    .dashboard {
+      background: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      padding: 28px 32px;
+      width: 100%;
+      max-width: 1180px;
+    }
+
+    /* ── Config section ───────────────────────────────────────────────── */
+    .config-section {
+      background: #f0f4ff;
+      border: 1px solid #c7d2fe;
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-bottom: 20px;
+    }
+
+    .config-section-title {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #374151;
+      margin-bottom: 14px;
+    }
+
+    /* ── Start date row ───────────────────────────────────────────────── */
+    .start-date-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    .start-date-label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #374151;
+      white-space: nowrap;
+    }
+
+    input[type="date"] {
+      border: 1.5px solid #c7d2fe;
+      border-radius: 8px;
+      padding: 7px 12px;
+      font-size: 0.85rem;
+      color: #1a202c;
+      background: #fff;
+      cursor: pointer;
+      outline: none;
+      font-family: inherit;
+    }
+
+    input[type="date"]:focus {
+      border-color: #4f46e5;
+      box-shadow: 0 0 0 3px rgba(79,70,229,0.12);
+    }
+
+    .date-hint {
+      font-size: 0.78rem;
+      color: #9ca3af;
+    }
+
+    /* ── Slider section ───────────────────────────────────────────────── */
+    .slider-section {
+      background: #f0f4ff;
+      border: 1px solid #c7d2fe;
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-bottom: 20px;
+    }
+
+    .slider-section-title {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #374151;
+      margin-bottom: 14px;
+    }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .slider-label-left {
+      font-size: 0.82rem;
+      color: #6b7280;
+      white-space: nowrap;
+    }
+
+    input[type="range"] {
+      flex: 1;
+      min-width: 200px;
+      height: 6px;
+      border-radius: 3px;
+      accent-color: #4f46e5;
+      cursor: pointer;
+    }
+
+    .slider-value-badge {
+      background: #4f46e5;
+      color: #fff;
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      white-space: nowrap;
+      min-width: 80px;
+      text-align: center;
+    }
+
+    .slider-ticks {
+      display: flex;
+      justify-content: space-between;
+      padding: 0 2px;
+      margin-top: 6px;
+    }
+
+    .slider-tick {
+      font-size: 0.7rem;
+      color: #9ca3af;
+    }
+
+    .slider-summary {
+      margin-top: 12px;
+      font-size: 0.82rem;
+      color: #4b5563;
+    }
+
+    .slider-summary strong {
+      color: #4338ca;
+    }
+
+    /* ── Monthly config grid ──────────────────────────────────────────── */
+    .monthly-config-section {
+      background: #faf5ff;
+      border: 1px solid #ddd6fe;
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-bottom: 20px;
+    }
+
+    .monthly-config-title {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #374151;
+      margin-bottom: 6px;
+    }
+
+    .monthly-config-hint {
+      font-size: 0.78rem;
+      color: #9ca3af;
+      margin-bottom: 16px;
+    }
+
+    .months-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 12px;
+    }
+
+    .month-card {
+      background: #fff;
+      border: 1px solid #e9d5ff;
+      border-radius: 10px;
+      padding: 12px 14px;
+      transition: border-color 0.2s;
+    }
+
+    .month-card.has-reduction {
+      border-color: #a78bfa;
+      background: #fdf4ff;
+    }
+
+    .month-card-header {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #1a202c;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+
+    .month-row {
+      margin-bottom: 8px;
+    }
+
+    .month-row-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .month-btn-group {
+      display: flex;
+      gap: 3px;
+    }
+
+    .month-btn {
+      flex: 1;
+      padding: 4px 2px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 5px;
+      background: #f9fafb;
+      color: #6b7280;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.15s;
+      line-height: 1.3;
+      white-space: nowrap;
+    }
+
+    .month-btn:hover {
+      border-color: #a78bfa;
+      color: #7c3aed;
+      background: #f5f3ff;
+    }
+
+    /* Capacity button active states */
+    .month-btn.cap-active-100 {
+      background: #4ade80;
+      border-color: #16a34a;
+      color: #14532d;
+    }
+    .month-btn.cap-active-75 {
+      background: #fde68a;
+      border-color: #d97706;
+      color: #78350f;
+    }
+    .month-btn.cap-active-50 {
+      background: #fdba74;
+      border-color: #ea580c;
+      color: #7c2d12;
+    }
+    .month-btn.cap-active-25 {
+      background: #fca5a5;
+      border-color: #dc2626;
+      color: #7f1d1d;
+    }
+
+    /* Focus button active states */
+    .month-btn.foc-active-100 {
+      background: #60a5fa;
+      border-color: #2563eb;
+      color: #1e3a8a;
+    }
+    .month-btn.foc-active-75 {
+      background: #93c5fd;
+      border-color: #3b82f6;
+      color: #1e40af;
+    }
+    .month-btn.foc-active-50 {
+      background: #bfdbfe;
+      border-color: #60a5fa;
+      color: #1e40af;
+    }
+    .month-btn.foc-active-25 {
+      background: #dbeafe;
+      border-color: #93c5fd;
+      color: #1e3a8a;
+    }
+
+    .month-effective {
+      margin-top: 8px;
+      font-size: 0.7rem;
+      color: #9ca3af;
+      text-align: center;
+      border-top: 1px solid #f3f4f6;
+      padding-top: 6px;
+    }
+
+    .month-effective strong {
+      color: #7c3aed;
+    }
+
+    /* ── Parameters strip ─────────────────────────────────────────────── */
+    .params-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+
+    .param-chip {
+      background: #eef2ff;
+      border: 1px solid #c7d2fe;
+      border-radius: 8px;
+      padding: 7px 14px;
+      font-size: 0.8rem;
+      color: #4338ca;
+    }
+
+    .param-chip span { font-weight: 700; }
+
+    /* ── KPI cards ────────────────────────────────────────────────────── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .kpi-card {
+      border-radius: 12px;
+      padding: 18px 20px;
+      border: 1px solid transparent;
+    }
+
+    .kpi-card.blue   { background: #eff6ff; border-color: #bfdbfe; }
+    .kpi-card.orange { background: #fff7ed; border-color: #fed7aa; }
+    .kpi-card.green  { background: #f0fdf4; border-color: #bbf7d0; }
+
+    .kpi-num {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: #6b7280;
+      margin-bottom: 6px;
+    }
+
+    .kpi-question {
+      font-size: 0.87rem;
+      color: #374151;
+      margin-bottom: 12px;
+      min-height: 38px;
+      line-height: 1.4;
+    }
+
+    .kpi-value {
+      font-size: 1.45rem;
+      font-weight: 800;
+      color: #1a202c;
+      line-height: 1.2;
+    }
+
+    .kpi-sub {
+      font-size: 0.76rem;
+      color: #6b7280;
+      margin-top: 5px;
+    }
+
+    /* ── Section divider ──────────────────────────────────────────────── */
+    .divider {
+      border: none;
+      border-top: 1px solid #e2e8f0;
+      margin: 24px 0;
+    }
+
+    /* ── Charts row ───────────────────────────────────────────────────── */
+    .charts-row {
+      display: flex;
+      gap: 28px;
+      align-items: flex-start;
+    }
+
+    .chart-panel { flex: 1; min-width: 0; }
+
+    .chart-panel-title {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #374151;
+      margin-bottom: 6px;
+    }
+
+    .chart-panel-sub {
+      font-size: 0.76rem;
+      color: #9ca3af;
+      margin-bottom: 12px;
+    }
+
+    .chart-wrap {
+      position: relative;
+      height: 290px;
+    }
+
+    /* ── Legend row ───────────────────────────────────────────────────── */
+    .legend-row {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.78rem;
+      color: #4b5563;
+    }
+
+    .legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+
+    /* ── Probability table ────────────────────────────────────────────── */
+    .prob-section h3 {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #374151;
+      margin-bottom: 10px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+
+    th {
+      background: #f8fafc;
+      text-align: left;
+      padding: 9px 14px;
+      color: #6b7280;
+      font-weight: 700;
+      border-bottom: 2px solid #e2e8f0;
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 8px 14px;
+      border-bottom: 1px solid #f1f5f9;
+      color: #374151;
+    }
+
+    tr:hover td { background: #f8fafc; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      margin-left: 6px;
+    }
+
+    .badge-indigo { background: #e0e7ff; color: #4338ca; }
+    .badge-orange { background: #ffedd5; color: #c2410c; }
+
+    .pct-bar-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .pct-bar {
+      height: 8px;
+      border-radius: 4px;
+      background: #6366f1;
+      transition: width 0.3s;
+    }
+
+    /* ── Loading overlay ──────────────────────────────────────────────── */
+    .computing-badge {
+      display: none;
+      background: #f59e0b;
+      color: #fff;
+      border-radius: 20px;
+      padding: 3px 12px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      margin-left: 12px;
+      vertical-align: middle;
+    }
+    .computing-badge.visible { display: inline-block; }
+  </style>
+</head>
+<body>
+
+<h1>Symulacja Monte Carlo – Prognoza Backlogu v3</h1>
+<p class="subtitle" id="mainSubtitle">10 000 scenariuszy · Sprinty 2-tygodniowe · Capacity & Focus per miesiąc</p>
+
+<div class="dashboard">
+
+  <!-- ── Start date ──────────────────────────────────────────────────── -->
+  <div class="config-section">
+    <div class="config-section-title">📅 Data startu prac</div>
+    <div class="start-date-row">
+      <span class="start-date-label">Data startu (pierwszy dzień pierwszego sprintu):</span>
+      <input type="date" id="startDateInput" value="2026-05-04">
+      <span class="date-hint">Wybierz poniedziałek lub inny dzień startowy sprintu</span>
+    </div>
+  </div>
+
+  <!-- ── Backlog growth slider ───────────────────────────────────────── -->
+  <div class="slider-section">
+    <div class="slider-section-title">⚙️ Parametr: Stopień przyrostu liczby wymagań</div>
+    <div class="slider-row">
+      <span class="slider-label-left">0%</span>
+      <input type="range" id="growthSlider" min="0" max="100" step="10" value="0">
+      <span class="slider-label-left">100%</span>
+      <div class="slider-value-badge" id="growthBadge">+0%</div>
+    </div>
+    <div class="slider-ticks">
+      <span class="slider-tick">0%</span>
+      <span class="slider-tick">10%</span>
+      <span class="slider-tick">20%</span>
+      <span class="slider-tick">30%</span>
+      <span class="slider-tick">40%</span>
+      <span class="slider-tick">50%</span>
+      <span class="slider-tick">60%</span>
+      <span class="slider-tick">70%</span>
+      <span class="slider-tick">80%</span>
+      <span class="slider-tick">90%</span>
+      <span class="slider-tick">100%</span>
+    </div>
+    <div class="slider-summary">
+      Bazowy backlog: <strong>62 elementy</strong> · Przyrost: <strong id="growthDelta">+0 el.</strong> · Efektywny backlog: <strong id="effectiveBacklog">62 el.</strong>
+    </div>
+  </div>
+
+  <!-- ── Monthly capacity & focus ───────────────────────────────────── -->
+  <div class="monthly-config-section">
+    <div class="monthly-config-title">📊 Capacity i Focus na miesiąc
+      <span class="computing-badge" id="computingBadge">Liczę…</span>
+    </div>
+    <div class="monthly-config-hint">
+      <strong>Capacity</strong> – dostępność zespołu w danym miesiącu (np. wakacje, święta).
+      <strong>Focus</strong> – ile uwagi zespół poświęca na ten backlog (100% = pełne skupienie, 25% = minimalne skupienie).
+      Efektywna przepustowość = throughput × capacity × focus.
+    </div>
+    <div class="months-grid" id="monthsGrid"></div>
+  </div>
+
+  <!-- Parameters -->
+  <div class="params-row">
+    <div class="param-chip">Bazowy backlog: <span>62 elementy</span></div>
+    <div class="param-chip">Aktualny backlog: <span id="chipBacklog">62 el.</span></div>
+    <div class="param-chip">Start prac: <span id="chipStart">4 maja 2026</span></div>
+    <div class="param-chip">Długość sprintu: <span>2 tygodnie</span></div>
+    <div class="param-chip">Historyczna przepustowość (el./sprint): <span>5, 4, 4, 5, 6, 4, 2, 3, 2, 5, 6</span></div>
+    <div class="param-chip">Liczba symulacji: <span>10 000</span></div>
+  </div>
+
+  <!-- KPI cards -->
+  <div class="kpi-grid">
+    <div class="kpi-card blue">
+      <div class="kpi-num">Pytanie 1</div>
+      <div class="kpi-question" id="kpi1-q">Jaką datę ukończenia 85% pozycji backlogu prognozujesz?</div>
+      <div class="kpi-value" id="kpi1-val">–</div>
+      <div class="kpi-sub" id="kpi1-sub"></div>
+    </div>
+    <div class="kpi-card orange">
+      <div class="kpi-num">Pytanie 2</div>
+      <div class="kpi-question" id="kpi2-q">Jaką datę ukończenia całości 62 elementów backlogu?</div>
+      <div class="kpi-value" id="kpi2-val">–</div>
+      <div class="kpi-sub" id="kpi2-sub"></div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-num">Pytanie 3</div>
+      <div class="kpi-question">Ile jesteśmy w stanie zrealizować do końca sierpnia 2026?</div>
+      <div class="kpi-value" id="kpi3-val">–</div>
+      <div class="kpi-sub" id="kpi3-sub"></div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- Charts -->
+  <div class="charts-row">
+
+    <div class="chart-panel">
+      <div class="chart-panel-title" id="chartAllTitle">Kiedy ukończymy cały backlog?</div>
+      <div class="chart-panel-sub">Rozkład liczby sprintów potrzebnych do realizacji wszystkich elementów</div>
+      <div class="chart-wrap"><canvas id="chartAll"></canvas></div>
+      <div class="legend-row">
+        <div class="legend-item"><div class="legend-dot" style="background:#3b82f6;"></div> ≤ P50 (mediana)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#f97316;"></div> P50 – P85</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#ef4444;"></div> > P85</div>
+      </div>
+    </div>
+
+    <div class="chart-panel">
+      <div class="chart-panel-title">Ile elementów do końca sierpnia 2026?</div>
+      <div class="chart-panel-sub">Rozkład liczby zrealizowanych elementów po <span id="sprintsToAugLabel">–</span> sprintach (do 31.08.2026)</div>
+      <div class="chart-wrap"><canvas id="chartAug"></canvas></div>
+      <div class="legend-row">
+        <div class="legend-item"><div class="legend-dot" style="background:#10b981;"></div> < Mediana</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#3b82f6;"></div> ≥ Mediana</div>
+      </div>
+    </div>
+
+  </div>
+
+  <hr class="divider">
+
+  <!-- Probability table -->
+  <div class="prob-section">
+    <h3 id="probTableTitle">Tabela skumulowanego prawdopodobieństwa ukończenia całego backlogu</h3>
+    <table id="probTable">
+      <thead>
+        <tr>
+          <th>Sprint #</th>
+          <th>Data zakończenia sprintu</th>
+          <th>Scenariusze w tym sprincie</th>
+          <th>Skumulowane prawdopodobieństwo</th>
+        </tr>
+      </thead>
+      <tbody id="probTbody"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+// ── Fixed configuration ───────────────────────────────────────────────────────
+const THROUGHPUT   = [5, 4, 4, 5, 6, 4, 2, 3, 2, 5, 6];
+const N_SIM        = 10000;
+const BASE_BACKLOG = 62;
+const END_AUG      = new Date(2026, 7, 31);   // Aug 31, 2026 – fixed reference
+
+const N_MONTHS     = 18;   // how many months to show in the config grid
+
+// ── State ─────────────────────────────────────────────────────────────────────
+// monthKey: "YYYY-MM"  →  { capacity: 100, focus: 100 }
+const monthConfig = {};
+
+// ── Chart instances ───────────────────────────────────────────────────────────
+let chartAllInstance = null;
+let chartAugInstance = null;
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function monthKey(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
+}
+
+function sprintEndDate(start, n) {
+  const d = new Date(start);
+  d.setDate(d.getDate() + n * 14);
+  return d;
+}
+
+function formatDate(d) {
+  return d.toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function formatDateShort(d) {
+  return d.toLocaleDateString('pl-PL', { day: 'numeric', month: 'short' });
+}
+
+function formatMonthYear(d) {
+  return d.toLocaleDateString('pl-PL', { month: 'long', year: 'numeric' });
+}
+
+function pctValue(sorted, p) {
+  const idx = (p / 100) * (sorted.length - 1);
+  const lo  = Math.floor(idx);
+  const hi  = Math.ceil(idx);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+}
+
+function sample() {
+  return THROUGHPUT[Math.floor(Math.random() * THROUGHPUT.length)];
+}
+
+function getMultiplier(start, sprintIndex) {
+  const sd  = sprintEndDate(start, sprintIndex);
+  const key = monthKey(sd);
+  const cfg = monthConfig[key] || { capacity: 100, focus: 100 };
+  return (cfg.capacity / 100) * (cfg.focus / 100);
+}
+
+// ── Build month cards ─────────────────────────────────────────────────────────
+function buildMonthCards(start) {
+  const grid = document.getElementById('monthsGrid');
+  grid.innerHTML = '';
+
+  for (let i = 0; i < N_MONTHS; i++) {
+    const d = new Date(start.getFullYear(), start.getMonth() + i, 1);
+    const key = monthKey(d);
+
+    if (!monthConfig[key]) {
+      monthConfig[key] = { capacity: 100, focus: 100 };
+    }
+
+    const cfg = monthConfig[key];
+    const card = document.createElement('div');
+    card.className = 'month-card' + (cfg.capacity < 100 || cfg.focus < 100 ? ' has-reduction' : '');
+    card.dataset.key = key;
+
+    const capBtns = [25, 50, 75, 100].map(v => {
+      const cls = cfg.capacity === v ? `month-btn cap-active-${v}` : 'month-btn';
+      return `<button class="${cls}" data-key="${key}" data-type="capacity" data-val="${v}">${v}%</button>`;
+    }).join('');
+
+    const focBtns = [25, 50, 75, 100].map(v => {
+      const cls = cfg.focus === v ? `month-btn foc-active-${v}` : 'month-btn';
+      return `<button class="${cls}" data-key="${key}" data-type="focus" data-val="${v}">${v}%</button>`;
+    }).join('');
+
+    const eff = ((cfg.capacity / 100) * (cfg.focus / 100) * 100).toFixed(0);
+    const effColor = eff >= 100 ? '#16a34a' : eff >= 50 ? '#d97706' : '#dc2626';
+
+    card.innerHTML = `
+      <div class="month-card-header">${formatMonthYear(d)}</div>
+      <div class="month-row">
+        <div class="month-row-label">Capacity</div>
+        <div class="month-btn-group">${capBtns}</div>
+      </div>
+      <div class="month-row">
+        <div class="month-row-label">Focus</div>
+        <div class="month-btn-group">${focBtns}</div>
+      </div>
+      <div class="month-effective">Efekt.: <strong style="color:${effColor}">${eff}%</strong></div>
+    `;
+    grid.appendChild(card);
+  }
+
+  // event delegation
+  grid.onclick = (e) => {
+    const btn = e.target.closest('.month-btn');
+    if (!btn) return;
+    const key  = btn.dataset.key;
+    const type = btn.dataset.type;
+    const val  = parseInt(btn.dataset.val, 10);
+
+    monthConfig[key][type] = val;
+
+    // Update active class for buttons in this group
+    const card = grid.querySelector(`.month-card[data-key="${key}"]`);
+    const activeClass = type === 'capacity' ? `cap-active-${val}` : `foc-active-${val}`;
+    const prefix = type === 'capacity' ? 'cap-active-' : 'foc-active-';
+
+    card.querySelectorAll(`[data-type="${type}"]`).forEach(b => {
+      b.className = 'month-btn';
+      if (parseInt(b.dataset.val, 10) === val) {
+        b.className = `month-btn ${activeClass}`;
+      }
+    });
+
+    // Update effective label
+    const cfg = monthConfig[key];
+    const eff = ((cfg.capacity / 100) * (cfg.focus / 100) * 100).toFixed(0);
+    const effColor = eff >= 100 ? '#16a34a' : eff >= 50 ? '#d97706' : '#dc2626';
+    card.querySelector('.month-effective').innerHTML =
+      `Efekt.: <strong style="color:${effColor}">${eff}%</strong>`;
+
+    // Update card border
+    card.className = 'month-card' + (cfg.capacity < 100 || cfg.focus < 100 ? ' has-reduction' : '');
+
+    scheduleSimulation();
+  };
+}
+
+// ── Main simulation ───────────────────────────────────────────────────────────
+function runSimulation(start, backlog) {
+  const target85 = Math.ceil(0.85 * backlog);
+
+  const daysToAug    = Math.round((END_AUG - start) / 86400000);
+  const sprintsToAug = Math.max(0, Math.floor(daysToAug / 14));
+
+  document.getElementById('sprintsToAugLabel').textContent =
+    sprintsToAug > 0 ? sprintsToAug + ' pełnych sprintów' : '0 sprintów (start po sierpniu)';
+
+  const sprintsTo85arr  = [];
+  const sprintsToAllarr = [];
+  const itemsByAugarr   = [];
+
+  for (let i = 0; i < N_SIM; i++) {
+    let total = 0, sprint = 0, s85 = null;
+
+    while (total < backlog) {
+      const mult  = getMultiplier(start, sprint);
+      const drawn = sample() * mult;
+      total += drawn;
+      sprint++;
+      if (s85 === null && total >= target85) s85 = sprint;
+    }
+    sprintsTo85arr.push(s85);
+    sprintsToAllarr.push(sprint);
+
+    let aug = 0;
+    for (let s = 0; s < sprintsToAug; s++) {
+      aug += sample() * getMultiplier(start, s);
+    }
+    itemsByAugarr.push(Math.min(aug, backlog));
+  }
+
+  sprintsTo85arr.sort((a, b) => a - b);
+  sprintsToAllarr.sort((a, b) => a - b);
+  itemsByAugarr.sort((a, b) => a - b);
+
+  const p50All = Math.ceil(pctValue(sprintsToAllarr, 50));
+  const p85All = Math.ceil(pctValue(sprintsToAllarr, 85));
+  const p50_85 = Math.ceil(pctValue(sprintsTo85arr,  50));
+  const p85_85 = Math.ceil(pctValue(sprintsTo85arr,  85));
+
+  const augP15 = Math.round(pctValue(itemsByAugarr, 15));
+  const augP50 = Math.round(pctValue(itemsByAugarr, 50));
+  const augP85 = Math.round(pctValue(itemsByAugarr, 85));
+
+  // KPI cards
+  document.getElementById('kpi1-q').textContent =
+    `Jaką datę ukończenia 85% pozycji backlogu (${target85} el.) prognozujesz?`;
+  document.getElementById('kpi1-val').textContent = formatDate(sprintEndDate(start, p85_85));
+  document.getElementById('kpi1-sub').textContent =
+    `P85 (85% scenariuszy) · ${target85} z ${backlog} el. · Sprint ${p85_85} · Mediana: ${formatDate(sprintEndDate(start, p50_85))}`;
+
+  document.getElementById('kpi2-q').textContent =
+    `Jaką datę ukończenia całości ${backlog} elementów backlogu?`;
+  document.getElementById('kpi2-val').textContent = formatDate(sprintEndDate(start, p85All));
+  document.getElementById('kpi2-sub').textContent =
+    `P85 (85% scenariuszy) · Sprint ${p85All} · Mediana (P50): ${formatDate(sprintEndDate(start, p50All))}`;
+
+  if (sprintsToAug > 0) {
+    document.getElementById('kpi3-val').textContent = `${Math.round(augP50)} elementów`;
+    document.getElementById('kpi3-sub').textContent =
+      `Mediana (P50) · zakres P15–P85: ${Math.round(augP15)}–${Math.round(augP85)} el. · ${sprintsToAug} sprintów (do 31.08.2026)`;
+  } else {
+    document.getElementById('kpi3-val').textContent = '–';
+    document.getElementById('kpi3-sub').textContent = 'Start prac po 31.08.2026 – brak sprintów do tego terminu';
+  }
+
+  document.getElementById('chartAllTitle').textContent =
+    `Kiedy ukończymy cały backlog? (${backlog} elementów)`;
+  document.getElementById('probTableTitle').textContent =
+    `Tabela skumulowanego prawdopodobieństwa ukończenia całego backlogu (${backlog} el.)`;
+
+  // ── Chart 1 ──────────────────────────────────────────────────────────────
+  const minS = sprintsToAllarr[0];
+  const maxS = sprintsToAllarr[sprintsToAllarr.length - 1];
+
+  const allBins = {};
+  for (let s = minS; s <= maxS; s++) allBins[s] = 0;
+  sprintsToAllarr.forEach(s => { allBins[s]++; });
+
+  const allSprints = Object.keys(allBins).map(Number);
+  const allCounts  = allSprints.map(s => allBins[s]);
+  const allColors  = allSprints.map(s => {
+    if (s <= p50All) return 'rgba(59,130,246,0.75)';
+    if (s <= p85All) return 'rgba(249,115,22,0.75)';
+    return 'rgba(239,68,68,0.75)';
+  });
+  const allLabels  = allSprints.map(s => formatDateShort(sprintEndDate(start, s)));
+
+  const p50AllIdx = allSprints.indexOf(p50All);
+  const p85AllIdx = allSprints.indexOf(p85All);
+
+  if (chartAllInstance) { chartAllInstance.destroy(); chartAllInstance = null; }
+
+  const ctxAll = document.getElementById('chartAll').getContext('2d');
+  chartAllInstance = new Chart(ctxAll, {
+    type: 'bar',
+    data: {
+      labels: allLabels,
+      datasets: [{ data: allCounts, backgroundColor: allColors, borderWidth: 0, borderRadius: 2 }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title:  (items) => `Sprint ${allSprints[items[0].dataIndex]} · ${formatDate(sprintEndDate(start, allSprints[items[0].dataIndex]))}`,
+            label:  (item)  => ` ${item.raw} scenariuszy (${(item.raw / N_SIM * 100).toFixed(1)}%)`,
+          }
+        },
+        annotation: {
+          annotations: {
+            p50line: {
+              type: 'line', xMin: p50AllIdx, xMax: p50AllIdx,
+              borderColor: '#4f46e5', borderWidth: 2, borderDash: [5, 3],
+              label: { display: true, content: `P50 · Sprint ${p50All}`, backgroundColor: '#4f46e5',
+                color: '#fff', font: { size: 11, weight: 'bold' }, padding: { x: 7, y: 4 },
+                position: 'start', yAdjust: -8 }
+            },
+            p85line: {
+              type: 'line', xMin: p85AllIdx, xMax: p85AllIdx,
+              borderColor: '#ea580c', borderWidth: 2, borderDash: [5, 3],
+              label: { display: true, content: `P85 · Sprint ${p85All}`, backgroundColor: '#ea580c',
+                color: '#fff', font: { size: 11, weight: 'bold' }, padding: { x: 7, y: 4 },
+                position: 'start', yAdjust: 20 }
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          title: { display: true, text: 'Data zakończenia sprintu', font: { size: 11 }, color: '#718096' },
+          ticks: { color: '#718096', font: { size: 9 }, maxRotation: 45, autoSkip: true, maxTicksLimit: 20 },
+          grid: { display: false },
+        },
+        y: {
+          title: { display: true, text: 'Liczba scenariuszy', font: { size: 11 }, color: '#718096' },
+          ticks: { color: '#718096', font: { size: 10 } },
+          grid: { color: '#f0f0f0' },
+          beginAtZero: true,
+        }
+      }
+    }
+  });
+
+  // ── Chart 2 ──────────────────────────────────────────────────────────────
+  if (chartAugInstance) { chartAugInstance.destroy(); chartAugInstance = null; }
+
+  if (sprintsToAug > 0) {
+    const BIN = 2;
+    const augBinsMap = {};
+    itemsByAugarr.forEach(v => {
+      const bin = Math.floor(v / BIN) * BIN;
+      augBinsMap[bin] = (augBinsMap[bin] || 0) + 1;
+    });
+
+    const augBinKeys   = Object.keys(augBinsMap).map(Number).sort((a, b) => a - b);
+    const augBinLabels = augBinKeys.map(b => (b + BIN - 1 >= backlog) ? `${b}+` : `${b}–${b + BIN - 1}`);
+    const augBinCounts = augBinKeys.map(b => augBinsMap[b]);
+    const augBinColors = augBinKeys.map(b => b < augP50 ? 'rgba(16,185,129,0.7)' : 'rgba(59,130,246,0.75)');
+
+    const p50AugBin = Math.floor(augP50 / BIN) * BIN;
+    const p50AugIdx = augBinKeys.indexOf(p50AugBin);
+
+    const ctxAug = document.getElementById('chartAug').getContext('2d');
+    chartAugInstance = new Chart(ctxAug, {
+      type: 'bar',
+      data: {
+        labels: augBinLabels,
+        datasets: [{ data: augBinCounts, backgroundColor: augBinColors, borderWidth: 0, borderRadius: 2 }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title:  (items) => `Elementy: ${augBinLabels[items[0].dataIndex]}`,
+              label:  (item)  => ` ${item.raw} scenariuszy (${(item.raw / N_SIM * 100).toFixed(1)}%)`,
+            }
+          },
+          annotation: {
+            annotations: {
+              p50aug: {
+                type: 'line', xMin: p50AugIdx, xMax: p50AugIdx,
+                borderColor: '#4f46e5', borderWidth: 2, borderDash: [5, 3],
+                label: { display: true, content: `P50: ${Math.round(augP50)} el.`, backgroundColor: '#4f46e5',
+                  color: '#fff', font: { size: 11, weight: 'bold' }, padding: { x: 7, y: 4 },
+                  position: 'start', yAdjust: -8 }
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            title: { display: true, text: 'Liczba zrealizowanych elementów', font: { size: 11 }, color: '#718096' },
+            ticks: { color: '#718096', font: { size: 10 } },
+            grid: { display: false },
+          },
+          y: {
+            title: { display: true, text: 'Liczba scenariuszy', font: { size: 11 }, color: '#718096' },
+            ticks: { color: '#718096', font: { size: 10 } },
+            grid: { color: '#f0f0f0' },
+            beginAtZero: true,
+          }
+        }
+      }
+    });
+  }
+
+  // ── Probability table ─────────────────────────────────────────────────────
+  const tbody = document.getElementById('probTbody');
+  tbody.innerHTML = '';
+  let cumulative = 0;
+  const tableMax = Math.min(maxS, p85All + 2);
+  for (let s = minS; s <= tableMax; s++) {
+    const cnt = allBins[s] || 0;
+    if (cnt === 0 && s < p50All) continue;
+    cumulative += cnt;
+    const cumPct = (cumulative / N_SIM * 100).toFixed(1);
+    const spPct  = (cnt / N_SIM * 100).toFixed(1);
+    const date   = sprintEndDate(start, s);
+    let badge = '';
+    if (s === p50All) badge = '<span class="badge badge-indigo">P50</span>';
+    if (s === p85All) badge = '<span class="badge badge-orange">P85</span>';
+
+    tbody.insertAdjacentHTML('beforeend', `
+      <tr>
+        <td>Sprint ${s}${badge}</td>
+        <td>${formatDate(date)}</td>
+        <td>${spPct}%</td>
+        <td>
+          <div class="pct-bar-wrap">
+            <div class="pct-bar" style="width:${Math.min(parseFloat(cumPct), 100) * 1.8}px;
+                 background:${parseFloat(cumPct) >= 85 ? '#ea580c' : '#6366f1'};"></div>
+            <span>${cumPct}%</span>
+          </div>
+        </td>
+      </tr>
+    `);
+  }
+}
+
+// ── Debounced scheduler ───────────────────────────────────────────────────────
+let simTimer = null;
+
+function scheduleSimulation() {
+  document.getElementById('computingBadge').classList.add('visible');
+  clearTimeout(simTimer);
+  simTimer = setTimeout(() => {
+    const startVal = document.getElementById('startDateInput').value;
+    const parts    = startVal.split('-');
+    const start    = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+
+    const growthPct = parseInt(document.getElementById('growthSlider').value, 10);
+    const backlog   = Math.round(BASE_BACKLOG * (1 + growthPct / 100));
+
+    // Ensure all months from this start are initialized
+    for (let i = 0; i < N_MONTHS; i++) {
+      const d   = new Date(start.getFullYear(), start.getMonth() + i, 1);
+      const key = monthKey(d);
+      if (!monthConfig[key]) monthConfig[key] = { capacity: 100, focus: 100 };
+    }
+
+    runSimulation(start, backlog);
+    document.getElementById('computingBadge').classList.remove('visible');
+  }, 300);
+}
+
+// ── Initialisation ────────────────────────────────────────────────────────────
+function init() {
+  const startVal = document.getElementById('startDateInput').value;
+  const parts    = startVal.split('-');
+  const start    = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+
+  buildMonthCards(start);
+  updateParamChips(start, BASE_BACKLOG, 0);
+  scheduleSimulation();
+}
+
+function updateParamChips(start, backlog, growthPct) {
+  document.getElementById('chipBacklog').textContent = backlog + ' el.';
+  document.getElementById('chipStart').textContent   = formatDate(start);
+  document.getElementById('growthBadge').textContent = `+${growthPct}%`;
+  document.getElementById('growthDelta').textContent =
+    `+${Math.round(BASE_BACKLOG * growthPct / 100)} el.`;
+  document.getElementById('effectiveBacklog').textContent = backlog + ' el.';
+  document.getElementById('mainSubtitle').textContent =
+    `10 000 scenariuszy · Start: ${formatDate(start)} · Sprinty 2-tygodniowe`;
+}
+
+// ── Event listeners ───────────────────────────────────────────────────────────
+document.getElementById('startDateInput').addEventListener('change', () => {
+  const startVal = document.getElementById('startDateInput').value;
+  const parts    = startVal.split('-');
+  const start    = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+  const growthPct = parseInt(document.getElementById('growthSlider').value, 10);
+  const backlog   = Math.round(BASE_BACKLOG * (1 + growthPct / 100));
+
+  buildMonthCards(start);
+  updateParamChips(start, backlog, growthPct);
+  scheduleSimulation();
+});
+
+document.getElementById('growthSlider').addEventListener('input', () => {
+  const startVal = document.getElementById('startDateInput').value;
+  const parts    = startVal.split('-');
+  const start    = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+  const growthPct = parseInt(document.getElementById('growthSlider').value, 10);
+  const backlog   = Math.round(BASE_BACKLOG * (1 + growthPct / 100));
+
+  updateParamChips(start, backlog, growthPct);
+  scheduleSimulation();
+});
+
+init();
+</script>
+</body>
+</html>
