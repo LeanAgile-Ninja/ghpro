@@ -1,1 +1,420 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Histogram Czasów Realizacji</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #f4f6fb;
+      color: #2d3748;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: #1a202c;
+      letter-spacing: -0.3px;
+    }
+
+    .subtitle {
+      font-size: 0.9rem;
+      color: #718096;
+      margin-bottom: 28px;
+    }
+
+    .dashboard {
+      background: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      padding: 28px 32px;
+      width: 100%;
+      max-width: 960px;
+    }
+
+    .chart-row {
+      display: flex;
+      gap: 24px;
+      align-items: flex-start;
+    }
+
+    .chart-wrap {
+      flex: 1;
+      min-width: 0;
+      position: relative;
+      height: 380px;
+    }
+
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      min-width: 180px;
+    }
+
+    /* Size Legend */
+    .legend-box, .controls-box {
+      background: #f8f9fc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+
+    .legend-box h3, .controls-box h3 {
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: #a0aec0;
+      margin-bottom: 10px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin-bottom: 6px;
+      font-size: 0.88rem;
+      color: #4a5568;
+    }
+
+    .legend-swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+
+    /* Percentile controls */
+    .pctl-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 7px;
+      font-size: 0.86rem;
+      color: #4a5568;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .pctl-item input[type="checkbox"] {
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--color);
+      border-radius: 4px;
+      background: #fff;
+      cursor: pointer;
+      position: relative;
+      flex-shrink: 0;
+      transition: background 0.15s;
+    }
+
+    .pctl-item input[type="checkbox"]:checked {
+      background: var(--color);
+    }
+
+    .pctl-item input[type="checkbox"]:checked::after {
+      content: '✓';
+      position: absolute;
+      color: #fff;
+      font-size: 11px;
+      line-height: 1;
+      top: 1px;
+      left: 2px;
+    }
+
+    .pctl-dash {
+      display: inline-block;
+      width: 20px;
+      height: 3px;
+      border-radius: 2px;
+      background: var(--color);
+      flex-shrink: 0;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .stat-card {
+      background: #f8f9fc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 12px 14px;
+      text-align: center;
+    }
+
+    .stat-label {
+      font-size: 0.74rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #a0aec0;
+      font-weight: 600;
+    }
+
+    .stat-value {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #2d3748;
+      margin-top: 2px;
+    }
+
+    .stat-unit {
+      font-size: 0.72rem;
+      color: #a0aec0;
+      margin-top: 1px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Histogram Czasów Realizacji</h1>
+  <p class="subtitle">Rozkład czasu realizacji zgłoszeń według rozmiaru (n = 36)</p>
+
+  <div class="dashboard">
+    <div class="chart-row">
+      <div class="chart-wrap">
+        <canvas id="histChart"></canvas>
+      </div>
+      <div class="sidebar">
+        <div class="legend-box">
+          <h3>Rozmiar</h3>
+          <div class="legend-item">
+            <span class="legend-swatch" style="background:#3b82f6;"></span>S – Small
+          </div>
+          <div class="legend-item">
+            <span class="legend-swatch" style="background:#10b981;"></span>M – Medium
+          </div>
+          <div class="legend-item">
+            <span class="legend-swatch" style="background:#f59e0b;"></span>L – Large
+          </div>
+        </div>
+
+        <div class="controls-box">
+          <h3>Statystyki</h3>
+
+          <label class="pctl-item" style="--color:#6366f1;">
+            <input type="checkbox" id="chk-mean" style="--color:#6366f1;" checked>
+            <span class="pctl-dash" style="--color:#6366f1;"></span>Średnia
+          </label>
+          <label class="pctl-item" style="--color:#f43f5e;">
+            <input type="checkbox" id="chk-p50" style="--color:#f43f5e;" checked>
+            <span class="pctl-dash" style="--color:#f43f5e; border-top:2px dashed #f43f5e; height:0; background:transparent;"></span>P50 (Mediana)
+          </label>
+          <label class="pctl-item" style="--color:#f97316;">
+            <input type="checkbox" id="chk-p85" style="--color:#f97316;" checked>
+            <span class="pctl-dash" style="--color:#f97316; border-top:2px dashed #f97316; height:0; background:transparent;"></span>P85
+          </label>
+          <label class="pctl-item" style="--color:#8b5cf6;">
+            <input type="checkbox" id="chk-p95" style="--color:#8b5cf6;" checked>
+            <span class="pctl-dash" style="--color:#8b5cf6; border-top:2px dashed #8b5cf6; height:0; background:transparent;"></span>P95
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="stats-grid" id="statsGrid"></div>
+  </div>
+
+  <script>
+    // ── Raw data ──────────────────────────────────────────────────────────────
+    const rawData = [
+      {size:'S',days:49},{size:'S',days:48},{size:'S',days:87},{size:'M',days:57},
+      {size:'M',days:148},{size:'S',days:53},{size:'S',days:45},{size:'M',days:145},
+      {size:'L',days:105},{size:'S',days:5},{size:'L',days:163},{size:'S',days:43},
+      {size:'M',days:415},{size:'L',days:123},{size:'M',days:103},{size:'L',days:104},
+      {size:'L',days:302},{size:'L',days:158},{size:'L',days:98},{size:'S',days:52},
+      {size:'M',days:95},{size:'S',days:70},{size:'M',days:95},{size:'M',days:101},
+      {size:'M',days:57},{size:'M',days:57},{size:'S',days:53},{size:'L',days:137},
+      {size:'S',days:73},{size:'M',days:60},{size:'S',days:126},{size:'M',days:57},
+      {size:'L',days:124},{size:'M',days:75},{size:'M',days:89},{size:'S',days:44},
+    ];
+
+    // ── Stats helpers ─────────────────────────────────────────────────────────
+    function pctValue(sorted, p) {
+      const idx = (p / 100) * (sorted.length - 1);
+      const lo = Math.floor(idx), hi = Math.ceil(idx);
+      return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+    }
+
+    const allDays  = rawData.map(d => d.days).sort((a,b) => a - b);
+    const meanVal  = allDays.reduce((s,v) => s + v, 0) / allDays.length;
+    const p50Val   = pctValue(allDays, 50);
+    const p85Val   = pctValue(allDays, 85);
+    const p95Val   = pctValue(allDays, 95);
+
+    // ── Histogram bins (width = 25) ───────────────────────────────────────────
+    const BIN = 25;
+    const maxDay = Math.max(...allDays);
+    const numBins = Math.ceil((maxDay + 1) / BIN);
+
+    const counts = { S: [], M: [], L: [] };
+    ['S','M','L'].forEach(s => { for(let i=0;i<numBins;i++) counts[s].push(0); });
+
+    rawData.forEach(d => {
+      const bi = Math.floor(d.days / BIN);
+      counts[d.size][bi]++;
+    });
+
+    const labels = [];
+    for (let i = 0; i < numBins; i++) {
+      labels.push(`${i * BIN}–${(i + 1) * BIN - 1}`);
+    }
+
+    // Convert a day value to a fractional category-axis index
+    function dayToX(val) {
+      const bi = Math.floor(val / BIN);
+      const frac = (val % BIN) / BIN;
+      return bi + frac;
+    }
+
+    // ── Annotation definitions ────────────────────────────────────────────────
+    const annotDefs = {
+      mean: { value: meanVal,  color: '#6366f1', label: `Średnia (${meanVal.toFixed(1)})`, dash: [6,0] },
+      p50:  { value: p50Val,   color: '#f43f5e', label: `P50 (${p50Val.toFixed(1)})`,    dash: [6,3] },
+      p85:  { value: p85Val,   color: '#f97316', label: `P85 (${p85Val.toFixed(1)})`,    dash: [6,3] },
+      p95:  { value: p95Val,   color: '#8b5cf6', label: `P95 (${p95Val.toFixed(1)})`,    dash: [6,3] },
+    };
+
+    function buildAnnotations(visible) {
+      const obj = {};
+      Object.entries(annotDefs).forEach(([key, def]) => {
+        if (!visible[key]) return;
+        obj[key] = {
+          type: 'line',
+          xMin: dayToX(def.value),
+          xMax: dayToX(def.value),
+          borderColor: def.color,
+          borderWidth: 2,
+          borderDash: def.dash,
+          label: {
+            display: true,
+            content: def.label,
+            backgroundColor: def.color,
+            color: '#fff',
+            font: { size: 11, weight: 'bold' },
+            padding: { x: 6, y: 3 },
+            position: 'start',
+            yAdjust: -6,
+          }
+        };
+      });
+      return obj;
+    }
+
+    // ── Chart setup ───────────────────────────────────────────────────────────
+    const ctx = document.getElementById('histChart').getContext('2d');
+
+    const visible = { mean: true, p50: true, p85: true, p95: true };
+
+    const chart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'S',
+            data: counts.S,
+            backgroundColor: '#3b82f6cc',
+            borderColor: '#2563eb',
+            borderWidth: 1,
+          },
+          {
+            label: 'M',
+            data: counts.M,
+            backgroundColor: '#10b981cc',
+            borderColor: '#059669',
+            borderWidth: 1,
+          },
+          {
+            label: 'L',
+            data: counts.L,
+            backgroundColor: '#f59e0bcc',
+            borderColor: '#d97706',
+            borderWidth: 1,
+          },
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: (items) => {
+                const idx = items[0].dataIndex;
+                return `Przedział: ${idx * BIN}–${(idx + 1) * BIN - 1} dni`;
+              },
+              afterBody: (items) => {
+                const idx = items[0].dataIndex;
+                const total = (counts.S[idx]||0) + (counts.M[idx]||0) + (counts.L[idx]||0);
+                return [`Łącznie: ${total}`];
+              }
+            }
+          },
+          annotation: {
+            annotations: buildAnnotations(visible)
+          }
+        },
+        scales: {
+          x: {
+            stacked: true,
+            title: { display: true, text: 'Czas realizacji (dni)', font: { size: 12 }, color: '#718096' },
+            grid: { color: '#f0f0f0' },
+            ticks: { color: '#718096', font: { size: 11 } },
+          },
+          y: {
+            stacked: true,
+            title: { display: true, text: 'Liczba zgłoszeń', font: { size: 12 }, color: '#718096' },
+            grid: { color: '#f0f0f0' },
+            ticks: { color: '#718096', stepSize: 1 },
+            beginAtZero: true,
+          }
+        }
+      }
+    });
+
+    // ── Checkbox handlers ─────────────────────────────────────────────────────
+    ['mean','p50','p85','p95'].forEach(key => {
+      document.getElementById(`chk-${key}`).addEventListener('change', function() {
+        visible[key] = this.checked;
+        chart.options.plugins.annotation.annotations = buildAnnotations(visible);
+        chart.update();
+      });
+    });
+
+    // ── Stats cards ───────────────────────────────────────────────────────────
+    const statsGrid = document.getElementById('statsGrid');
+    const statsToShow = [
+      { label: 'Średnia',   value: meanVal, color: '#6366f1' },
+      { label: 'P50',       value: p50Val,  color: '#f43f5e' },
+      { label: 'P85',       value: p85Val,  color: '#f97316' },
+      { label: 'P95',       value: p95Val,  color: '#8b5cf6' },
+    ];
+    statsToShow.forEach(s => {
+      statsGrid.insertAdjacentHTML('beforeend', `
+        <div class="stat-card">
+          <div class="stat-label" style="color:${s.color}">${s.label}</div>
+          <div class="stat-value">${Math.round(s.value)}</div>
+          <div class="stat-unit">dni</div>
+        </div>
+      `);
+    });
+  </script>
+</body>
+</html>
