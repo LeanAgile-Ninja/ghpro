@@ -113,6 +113,14 @@
         <div class="legend-dot" style="background:#f59e0b; height:2px; border-top: 2px dashed #f59e0b; background:transparent;"></div>
         Mediana
       </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#10b981; height:2px;"></div>
+        Średnia (X̄)
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#ef4444; height:2px; border-top: 2px dashed #ef4444; background:transparent;"></div>
+        UNPL / LNPL
+      </div>
     </div>
   </div>
 
@@ -161,12 +169,22 @@
   const min = sorted[0];
   const max = sorted[n - 1];
 
+  // Moving ranges and control limits
+  const mrs = [];
+  for (let i = 1; i < n; i++) mrs.push(Math.abs(cts[i] - cts[i - 1]));
+  const mrMean = mrs.reduce((a, b) => a + b, 0) / mrs.length;
+  const unpl = mean + 2.66 * mrMean;
+  const lnpl = Math.max(0, mean - 2.66 * mrMean);
+
   // Stats cards
   const stats = [
     {label: "Liczba zadań", value: n, unit: ""},
-    {label: "Średnia", value: mean.toFixed(1), unit: "dni"},
+    {label: "Średnia (X̄)", value: mean.toFixed(1), unit: "dni"},
     {label: "Mediana", value: median, unit: "dni"},
     {label: "85. percentyl", value: p85, unit: "dni"},
+    {label: "Śr. zakres MR̄", value: mrMean.toFixed(1), unit: "dni"},
+    {label: "UNPL", value: unpl.toFixed(1), unit: "dni"},
+    {label: "LNPL", value: lnpl.toFixed(1), unit: "dni"},
     {label: "Min", value: min, unit: "dni"},
     {label: "Max", value: max, unit: "dni"},
   ];
@@ -214,6 +232,35 @@
           fill: false,
           order: 2,
         },
+        {
+          label: 'Średnia (X̄)',
+          data: Array(n).fill(mean),
+          borderColor: '#10b981',
+          borderWidth: 2,
+          pointRadius: 0,
+          fill: false,
+          order: 3,
+        },
+        {
+          label: 'UNPL',
+          data: Array(n).fill(unpl),
+          borderColor: '#ef4444',
+          borderWidth: 2,
+          borderDash: [6, 4],
+          pointRadius: 0,
+          fill: false,
+          order: 4,
+        },
+        {
+          label: 'LNPL',
+          data: Array(n).fill(lnpl),
+          borderColor: '#ef4444',
+          borderWidth: 2,
+          borderDash: [6, 4],
+          pointRadius: 0,
+          fill: false,
+          order: 5,
+        },
       ]
     },
     options: {
@@ -233,7 +280,11 @@
             },
             label: (item) => {
               if (item.datasetIndex === 0) return ` Czas realizacji: ${item.raw} dni`;
-              return ` Mediana: ${item.raw} dni`;
+              if (item.datasetIndex === 1) return ` Mediana: ${item.raw} dni`;
+              if (item.datasetIndex === 2) return ` Średnia (X̄): ${item.raw.toFixed(1)} dni`;
+              if (item.datasetIndex === 3) return ` UNPL: ${item.raw.toFixed(1)} dni`;
+              if (item.datasetIndex === 4) return ` LNPL: ${item.raw.toFixed(1)} dni`;
+              return ` ${item.dataset.label}: ${item.raw} dni`;
             }
           }
         }
