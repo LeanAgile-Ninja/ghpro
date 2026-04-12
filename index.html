@@ -179,6 +179,127 @@
       color: #a0aec0;
       margin-top: 1px;
     }
+
+    /* Filter radio buttons */
+    .radio-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+      font-size: 0.88rem;
+      color: #4a5568;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .radio-item input[type="radio"] {
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #cbd5e0;
+      border-radius: 50%;
+      background: #fff;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: border-color 0.15s, background 0.15s;
+      position: relative;
+    }
+
+    .radio-item input[type="radio"]:checked {
+      border-color: #3b82f6;
+      background: #3b82f6;
+    }
+
+    .radio-item input[type="radio"]:checked::after {
+      content: '';
+      position: absolute;
+      width: 6px;
+      height: 6px;
+      background: #fff;
+      border-radius: 50%;
+      top: 3px;
+      left: 3px;
+    }
+
+    /* Add entry form */
+    .add-form-wrap {
+      margin-top: 24px;
+      background: #f8f9fc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 16px 20px;
+    }
+
+    .add-form-wrap h3 {
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: #a0aec0;
+      margin-bottom: 12px;
+    }
+
+    .add-form-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+      flex-wrap: wrap;
+    }
+
+    .form-field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .form-field label {
+      font-size: 0.78rem;
+      color: #718096;
+      font-weight: 600;
+    }
+
+    .form-field select,
+    .form-field input[type="number"] {
+      border: 1px solid #cbd5e0;
+      border-radius: 7px;
+      padding: 7px 10px;
+      font-size: 0.88rem;
+      color: #2d3748;
+      background: #fff;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .form-field select:focus,
+    .form-field input[type="number"]:focus {
+      border-color: #3b82f6;
+    }
+
+    .form-field input[type="number"] {
+      width: 110px;
+    }
+
+    .btn-add {
+      padding: 8px 20px;
+      background: #3b82f6;
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+      align-self: flex-end;
+    }
+
+    .btn-add:hover { background: #2563eb; }
+
+    .add-feedback {
+      font-size: 0.8rem;
+      color: #10b981;
+      margin-top: 8px;
+      min-height: 18px;
+    }
   </style>
 </head>
 <body>
@@ -192,16 +313,19 @@
       </div>
       <div class="sidebar">
         <div class="legend-box">
-          <h3>Rozmiar</h3>
-          <div class="legend-item">
-            <span class="legend-swatch" style="background:#3b82f6;"></span>S – Small
-          </div>
-          <div class="legend-item">
-            <span class="legend-swatch" style="background:#10b981;"></span>M – Medium
-          </div>
-          <div class="legend-item">
-            <span class="legend-swatch" style="background:#f59e0b;"></span>L – Large
-          </div>
+          <h3>Filtr rozmiaru</h3>
+          <label class="radio-item">
+            <input type="radio" name="sizeFilter" value="all" checked> Wszystkie
+          </label>
+          <label class="radio-item">
+            <input type="radio" name="sizeFilter" value="S"> S – Small
+          </label>
+          <label class="radio-item">
+            <input type="radio" name="sizeFilter" value="M"> M – Medium
+          </label>
+          <label class="radio-item">
+            <input type="radio" name="sizeFilter" value="L"> L – Large
+          </label>
         </div>
 
         <div class="controls-box">
@@ -228,11 +352,31 @@
     </div>
 
     <div class="stats-grid" id="statsGrid"></div>
+
+    <div class="add-form-wrap">
+      <h3>Dodaj czas realizacji</h3>
+      <div class="add-form-row">
+        <div class="form-field">
+          <label for="newSize">Rozmiar</label>
+          <select id="newSize">
+            <option value="S">S – Small</option>
+            <option value="M">M – Medium</option>
+            <option value="L">L – Large</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="newDays">Czas (dni)</label>
+          <input type="number" id="newDays" min="1" placeholder="np. 90">
+        </div>
+        <button class="btn-add" id="btnAdd">Dodaj</button>
+      </div>
+      <div class="add-feedback" id="addFeedback"></div>
+    </div>
   </div>
 
   <script>
     // ── Raw data ──────────────────────────────────────────────────────────────
-    const rawData = [
+    let rawData = [
       {size:'S',days:49},{size:'S',days:48},{size:'S',days:87},{size:'M',days:57},
       {size:'M',days:148},{size:'S',days:53},{size:'S',days:45},{size:'M',days:145},
       {size:'L',days:105},{size:'S',days:5},{size:'L',days:163},{size:'S',days:43},
@@ -251,53 +395,57 @@
       return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
     }
 
-    const allDays  = rawData.map(d => d.days).sort((a,b) => a - b);
-    const meanVal  = allDays.reduce((s,v) => s + v, 0) / allDays.length;
-    const p50Val   = pctValue(allDays, 50);
-    const p85Val   = pctValue(allDays, 85);
-    const p95Val   = pctValue(allDays, 95);
-
-    // ── Histogram bins (width = 25) ───────────────────────────────────────────
+    // ── Constants ─────────────────────────────────────────────────────────────
     const BIN = 25;
-    const maxDay = Math.max(...allDays);
-    const numBins = Math.ceil((maxDay + 1) / BIN);
-
-    const counts = { S: [], M: [], L: [] };
-    ['S','M','L'].forEach(s => { for(let i=0;i<numBins;i++) counts[s].push(0); });
-
-    rawData.forEach(d => {
-      const bi = Math.floor(d.days / BIN);
-      counts[d.size][bi]++;
-    });
-
-    const labels = [];
-    for (let i = 0; i < numBins; i++) {
-      labels.push(`${i * BIN}–${(i + 1) * BIN - 1}`);
-    }
 
     // Convert a day value to a fractional category-axis index
-    function dayToX(val) {
-      const bi = Math.floor(val / BIN);
+    function dayToX(val, numBins) {
+      const bi = Math.min(Math.floor(val / BIN), numBins - 1);
       const frac = (val % BIN) / BIN;
       return bi + frac;
     }
 
-    // ── Annotation definitions ────────────────────────────────────────────────
-    const annotDefs = {
-      mean: { value: meanVal,  color: '#6366f1', label: `Średnia (${meanVal.toFixed(1)})`, dash: [6,0] },
-      p50:  { value: p50Val,   color: '#f43f5e', label: `P50 (${p50Val.toFixed(1)})`,    dash: [6,3] },
-      p85:  { value: p85Val,   color: '#f97316', label: `P85 (${p85Val.toFixed(1)})`,    dash: [6,3] },
-      p95:  { value: p95Val,   color: '#8b5cf6', label: `P95 (${p95Val.toFixed(1)})`,    dash: [6,3] },
-    };
+    // ── State ─────────────────────────────────────────────────────────────────
+    const visible = { mean: true, p50: true, p85: true, p95: true };
+    let activeFilter = 'all'; // 'all' | 'S' | 'M' | 'L'
 
-    function buildAnnotations(visible) {
+    // ── Compute bins from current rawData ─────────────────────────────────────
+    function computeBins() {
+      const maxDay = Math.max(...rawData.map(d => d.days));
+      const numBins = Math.ceil((maxDay + 1) / BIN);
+      const counts = {
+        S: new Array(numBins).fill(0),
+        M: new Array(numBins).fill(0),
+        L: new Array(numBins).fill(0),
+      };
+      rawData.forEach(d => { counts[d.size][Math.floor(d.days / BIN)]++; });
+      const labels = [];
+      for (let i = 0; i < numBins; i++) labels.push(`${i * BIN}–${(i + 1) * BIN - 1}`);
+      return { counts, labels, numBins };
+    }
+
+    // ── Build annotations ─────────────────────────────────────────────────────
+    function buildAnnotations(filteredDays, numBins) {
+      if (!filteredDays.length) return {};
+      const mean = filteredDays.reduce((s, v) => s + v, 0) / filteredDays.length;
+      const p50  = pctValue(filteredDays, 50);
+      const p85  = pctValue(filteredDays, 85);
+      const p95  = pctValue(filteredDays, 95);
+
+      const defs = {
+        mean: { value: mean, color: '#6366f1', label: `Średnia (${mean.toFixed(1)})`, dash: [6,0] },
+        p50:  { value: p50,  color: '#f43f5e', label: `P50 (${p50.toFixed(1)})`,      dash: [6,3] },
+        p85:  { value: p85,  color: '#f97316', label: `P85 (${p85.toFixed(1)})`,      dash: [6,3] },
+        p95:  { value: p95,  color: '#8b5cf6', label: `P95 (${p95.toFixed(1)})`,      dash: [6,3] },
+      };
+
       const obj = {};
-      Object.entries(annotDefs).forEach(([key, def]) => {
+      Object.entries(defs).forEach(([key, def]) => {
         if (!visible[key]) return;
         obj[key] = {
           type: 'line',
-          xMin: dayToX(def.value),
-          xMax: dayToX(def.value),
+          xMin: dayToX(def.value, numBins),
+          xMax: dayToX(def.value, numBins),
           borderColor: def.color,
           borderWidth: 2,
           borderDash: def.dash,
@@ -316,37 +464,18 @@
       return obj;
     }
 
-    // ── Chart setup ───────────────────────────────────────────────────────────
+    // ── Chart setup (initial data) ────────────────────────────────────────────
     const ctx = document.getElementById('histChart').getContext('2d');
-
-    const visible = { mean: true, p50: true, p85: true, p95: true };
+    const initBins = computeBins();
 
     const chart = new Chart(ctx, {
       type: 'bar',
       data: {
-        labels,
+        labels: initBins.labels,
         datasets: [
-          {
-            label: 'S',
-            data: counts.S,
-            backgroundColor: '#3b82f6cc',
-            borderColor: '#2563eb',
-            borderWidth: 1,
-          },
-          {
-            label: 'M',
-            data: counts.M,
-            backgroundColor: '#10b981cc',
-            borderColor: '#059669',
-            borderWidth: 1,
-          },
-          {
-            label: 'L',
-            data: counts.L,
-            backgroundColor: '#f59e0bcc',
-            borderColor: '#d97706',
-            borderWidth: 1,
-          },
+          { label: 'S', data: initBins.counts.S, backgroundColor: '#3b82f6cc', borderColor: '#2563eb', borderWidth: 1 },
+          { label: 'M', data: initBins.counts.M, backgroundColor: '#10b981cc', borderColor: '#059669', borderWidth: 1 },
+          { label: 'L', data: initBins.counts.L, backgroundColor: '#f59e0bcc', borderColor: '#d97706', borderWidth: 1 },
         ]
       },
       options: {
@@ -362,13 +491,17 @@
               },
               afterBody: (items) => {
                 const idx = items[0].dataIndex;
-                const total = (counts.S[idx]||0) + (counts.M[idx]||0) + (counts.L[idx]||0);
+                const ds = chart.data.datasets;
+                const total = ds.filter(d => !d.hidden).reduce((s, d) => s + (d.data[idx] || 0), 0);
                 return [`Łącznie: ${total}`];
               }
             }
           },
           annotation: {
-            annotations: buildAnnotations(visible)
+            annotations: buildAnnotations(
+              rawData.map(d => d.days).sort((a, b) => a - b),
+              initBins.numBins
+            )
           }
         },
         scales: {
@@ -389,31 +522,90 @@
       }
     });
 
+    // ── Render: rebuild chart + stats from current rawData + activeFilter ─────
+    function render() {
+      const { counts, labels, numBins } = computeBins();
+
+      chart.data.labels = labels;
+      chart.data.datasets[0].data = counts.S;
+      chart.data.datasets[1].data = counts.M;
+      chart.data.datasets[2].data = counts.L;
+
+      chart.data.datasets[0].hidden = activeFilter !== 'all' && activeFilter !== 'S';
+      chart.data.datasets[1].hidden = activeFilter !== 'all' && activeFilter !== 'M';
+      chart.data.datasets[2].hidden = activeFilter !== 'all' && activeFilter !== 'L';
+
+      const filteredData = activeFilter === 'all' ? rawData : rawData.filter(d => d.size === activeFilter);
+      const filteredDays = filteredData.map(d => d.days).sort((a, b) => a - b);
+
+      chart.options.plugins.annotation.annotations = buildAnnotations(filteredDays, numBins);
+      chart.update();
+
+      // Stats grid
+      const statsGrid = document.getElementById('statsGrid');
+      statsGrid.innerHTML = '';
+      if (filteredDays.length) {
+        const mean = filteredDays.reduce((s, v) => s + v, 0) / filteredDays.length;
+        const statsToShow = [
+          { label: 'Średnia', value: mean,                    color: '#6366f1' },
+          { label: 'P50',     value: pctValue(filteredDays, 50), color: '#f43f5e' },
+          { label: 'P85',     value: pctValue(filteredDays, 85), color: '#f97316' },
+          { label: 'P95',     value: pctValue(filteredDays, 95), color: '#8b5cf6' },
+        ];
+        statsToShow.forEach(s => {
+          statsGrid.insertAdjacentHTML('beforeend', `
+            <div class="stat-card">
+              <div class="stat-label" style="color:${s.color}">${s.label}</div>
+              <div class="stat-value">${Math.round(s.value)}</div>
+              <div class="stat-unit">dni</div>
+            </div>
+          `);
+        });
+      }
+
+      // Subtitle count
+      const displayCount = activeFilter === 'all' ? rawData.length : filteredDays.length;
+      document.querySelector('.subtitle').textContent =
+        `Rozkład czasu realizacji zgłoszeń według rozmiaru (n = ${displayCount})${activeFilter !== 'all' ? ` · filtr: ${activeFilter}` : ''}`;
+    }
+
+    // Initial render
+    render();
+
     // ── Checkbox handlers ─────────────────────────────────────────────────────
     ['mean','p50','p85','p95'].forEach(key => {
       document.getElementById(`chk-${key}`).addEventListener('change', function() {
         visible[key] = this.checked;
-        chart.options.plugins.annotation.annotations = buildAnnotations(visible);
-        chart.update();
+        render();
       });
     });
 
-    // ── Stats cards ───────────────────────────────────────────────────────────
-    const statsGrid = document.getElementById('statsGrid');
-    const statsToShow = [
-      { label: 'Średnia',   value: meanVal, color: '#6366f1' },
-      { label: 'P50',       value: p50Val,  color: '#f43f5e' },
-      { label: 'P85',       value: p85Val,  color: '#f97316' },
-      { label: 'P95',       value: p95Val,  color: '#8b5cf6' },
-    ];
-    statsToShow.forEach(s => {
-      statsGrid.insertAdjacentHTML('beforeend', `
-        <div class="stat-card">
-          <div class="stat-label" style="color:${s.color}">${s.label}</div>
-          <div class="stat-value">${Math.round(s.value)}</div>
-          <div class="stat-unit">dni</div>
-        </div>
-      `);
+    // ── Filter radio handlers ─────────────────────────────────────────────────
+    document.querySelectorAll('input[name="sizeFilter"]').forEach(radio => {
+      radio.addEventListener('change', function() {
+        activeFilter = this.value;
+        render();
+      });
+    });
+
+    // ── Add entry handler ─────────────────────────────────────────────────────
+    document.getElementById('btnAdd').addEventListener('click', () => {
+      const size = document.getElementById('newSize').value;
+      const days = parseInt(document.getElementById('newDays').value, 10);
+      const feedback = document.getElementById('addFeedback');
+
+      if (!days || days < 1) {
+        feedback.style.color = '#f43f5e';
+        feedback.textContent = 'Podaj prawidłowy czas (liczba dni ≥ 1).';
+        return;
+      }
+
+      rawData.push({ size, days });
+      document.getElementById('newDays').value = '';
+      feedback.style.color = '#10b981';
+      feedback.textContent = `Dodano: ${size} – ${days} dni`;
+      setTimeout(() => { feedback.textContent = ''; }, 3000);
+      render();
     });
   </script>
 </body>
