@@ -678,12 +678,6 @@ function sprintEndDate(start, n) {
   return d;
 }
 
-function sprintStartDate(start, n) {
-  const d = new Date(start);
-  d.setDate(d.getDate() + n * 14);
-  return d;
-}
-
 function formatDate(d) {
   return d.toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });
 }
@@ -708,7 +702,7 @@ function sample() {
 }
 
 function getMultiplier(start, sprintIndex) {
-  const sd  = sprintStartDate(start, sprintIndex);
+  const sd  = sprintEndDate(start, sprintIndex);
   const key = monthKey(sd);
   const cfg = monthConfig[key] || { capacity: 100, focus: 100 };
   return (cfg.capacity / 100) * (cfg.focus / 100);
