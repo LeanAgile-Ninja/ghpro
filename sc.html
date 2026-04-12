@@ -185,11 +185,122 @@
       margin-top: 1px;
     }
 
+    /* ── Slider ────────────────────────────────────────────────────────────── */
+    .slider-wrap { display: flex; flex-direction: column; gap: 6px; }
+
+    .slider-wrap input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 5px;
+      border-radius: 3px;
+      background: #e2e8f0;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .slider-wrap input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #6366f1;
+      cursor: pointer;
+      border: 2px solid #fff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    }
+
+    .slider-label {
+      font-size: 0.82rem;
+      color: #4a5568;
+      text-align: center;
+      font-weight: 600;
+    }
+
+    /* ── Add-data form ──────────────────────────────────────────────────────── */
+    .add-form-box {
+      background: #f8f9fc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-top: 20px;
+    }
+
+    .add-form-box h3 {
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: #a0aec0;
+      margin-bottom: 12px;
+    }
+
+    .form-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: flex-end;
+    }
+
+    .form-field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .form-field label {
+      font-size: 0.78rem;
+      color: #718096;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    .form-field input,
+    .form-field select {
+      padding: 6px 10px;
+      border: 1px solid #cbd5e0;
+      border-radius: 7px;
+      font-size: 0.9rem;
+      color: #2d3748;
+      background: #fff;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .form-field input:focus,
+    .form-field select:focus {
+      border-color: #6366f1;
+    }
+
+    .btn-add {
+      padding: 7px 18px;
+      background: #6366f1;
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+
+    .btn-add:hover { background: #4f46e5; }
+
+    .form-feedback {
+      font-size: 0.82rem;
+      margin-top: 8px;
+      min-height: 1.2em;
+      color: #10b981;
+      font-weight: 600;
+    }
+
     @media (max-width: 680px) {
       .chart-row { flex-direction: column; }
       .sidebar { flex-direction: row; flex-wrap: wrap; min-width: 0; width: 100%; }
       .legend-box, .controls-box { flex: 1; min-width: 140px; }
       .stats-grid { grid-template-columns: 1fr 1fr; }
+      .form-row { flex-direction: column; }
     }
   </style>
 </head>
@@ -236,7 +347,39 @@
             <span class="pctl-dash dashed" style="--color:#8b5cf6;"></span>P95
           </label>
         </div>
+
+        <div class="controls-box">
+          <h3>Filtr okresu</h3>
+          <div class="slider-wrap">
+            <input type="range" id="monthsSlider" min="1" step="1">
+            <div class="slider-label" id="sliderLabel">Wszystkie dane</div>
+          </div>
+        </div>
       </div>
+    </div>
+
+    <div class="add-form-box">
+      <h3>Dodaj dane ręcznie</h3>
+      <div class="form-row">
+        <div class="form-field">
+          <label for="newDate">Data ukończenia</label>
+          <input type="date" id="newDate">
+        </div>
+        <div class="form-field">
+          <label for="newSize">Rozmiar</label>
+          <select id="newSize">
+            <option value="S">S – Small</option>
+            <option value="M">M – Medium</option>
+            <option value="L">L – Large</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="newDays">Czas realizacji (dni)</label>
+          <input type="number" id="newDays" min="1" max="9999" placeholder="np. 45">
+        </div>
+        <button class="btn-add" id="btnAdd">Dodaj</button>
+      </div>
+      <div class="form-feedback" id="formFeedback"></div>
     </div>
 
     <div class="stats-grid" id="statsGrid"></div>
@@ -293,17 +436,39 @@
 
     // ── State ─────────────────────────────────────────────────────────────────
     const visible = { mean: true, p50: true, p85: true, p95: true };
+    let monthsBack = 0; // 0 = all data
+
+    // ── Filter helpers ────────────────────────────────────────────────────────
+    function getLatestDate() {
+      return new Date(Math.max(...rawData.map(d => new Date(d.date))));
+    }
+
+    function getDataMonthsRange() {
+      if (rawData.length < 2) return 1;
+      const dates = rawData.map(d => new Date(d.date));
+      const minD = new Date(Math.min(...dates));
+      const maxD = new Date(Math.max(...dates));
+      return Math.max(
+        (maxD.getFullYear() - minD.getFullYear()) * 12 + (maxD.getMonth() - minD.getMonth()),
+        1
+      );
+    }
+
+    function getFilteredData() {
+      if (monthsBack === 0) return rawData;
+      const latest = getLatestDate();
+      const cutoff = new Date(latest);
+      cutoff.setMonth(cutoff.getMonth() - monthsBack);
+      return rawData.filter(d => new Date(d.date) >= cutoff);
+    }
 
     // ── Split data by size ────────────────────────────────────────────────────
     function toPoint(d) { return { x: d.date, y: d.days }; }
 
-    const dsS = rawData.filter(d => d.size === 'S').map(toPoint);
-    const dsM = rawData.filter(d => d.size === 'M').map(toPoint);
-    const dsL = rawData.filter(d => d.size === 'L').map(toPoint);
-
     // ── Build annotations (horizontal lines) ─────────────────────────────────
-    function buildAnnotations() {
-      const allDays = rawData.map(d => d.days).sort((a, b) => a - b);
+    function buildAnnotations(data) {
+      if (!data || data.length === 0) return {};
+      const allDays = data.map(d => d.days).sort((a, b) => a - b);
       const mean = allDays.reduce((s, v) => s + v, 0) / allDays.length;
       const p50  = pctValue(allDays, 50);
       const p85  = pctValue(allDays, 85);
@@ -342,8 +507,12 @@
     }
 
     // ── Render stats cards ────────────────────────────────────────────────────
-    function renderStats() {
-      const allDays = rawData.map(d => d.days).sort((a, b) => a - b);
+    function renderStats(data) {
+      if (!data || data.length === 0) {
+        document.getElementById('statsGrid').innerHTML = '';
+        return;
+      }
+      const allDays = data.map(d => d.days).sort((a, b) => a - b);
       const mean = allDays.reduce((s, v) => s + v, 0) / allDays.length;
       const statsToShow = [
         { label: 'Średnia', value: mean,                       color: '#6366f1' },
@@ -364,6 +533,29 @@
       });
     }
 
+    // ── Update slider label ───────────────────────────────────────────────────
+    function updateSliderLabel(val, max) {
+      const lbl = document.getElementById('sliderLabel');
+      if (val >= max) {
+        lbl.textContent = 'Wszystkie dane';
+      } else {
+        lbl.textContent = `Ostatnie ${val} mies.`;
+      }
+    }
+
+    // ── Update everything from filtered data ──────────────────────────────────
+    function updateAll() {
+      const fd = getFilteredData();
+      chart.data.datasets[0].data = fd.filter(d => d.size === 'S').map(toPoint);
+      chart.data.datasets[1].data = fd.filter(d => d.size === 'M').map(toPoint);
+      chart.data.datasets[2].data = fd.filter(d => d.size === 'L').map(toPoint);
+      chart.options.plugins.annotation.annotations = buildAnnotations(fd);
+      chart.update();
+      renderStats(fd);
+      document.getElementById('subtitle').textContent =
+        `Czasy realizacji zgłoszeń w czasie (n = ${fd.length})`;
+    }
+
     // ── Chart ────────────────────────────────────────────────────────────────
     const ctx = document.getElementById('scChart').getContext('2d');
 
@@ -373,7 +565,7 @@
         datasets: [
           {
             label: 'S – Small',
-            data: dsS,
+            data: [],
             backgroundColor: '#3b82f6cc',
             borderColor: '#2563eb',
             borderWidth: 1.5,
@@ -382,7 +574,7 @@
           },
           {
             label: 'M – Medium',
-            data: dsM,
+            data: [],
             backgroundColor: '#10b981cc',
             borderColor: '#059669',
             borderWidth: 1.5,
@@ -391,7 +583,7 @@
           },
           {
             label: 'L – Large',
-            data: dsL,
+            data: [],
             backgroundColor: '#f59e0bcc',
             borderColor: '#d97706',
             borderWidth: 1.5,
@@ -419,7 +611,7 @@
             }
           },
           annotation: {
-            annotations: buildAnnotations()
+            annotations: {}
           }
         },
         scales: {
@@ -444,15 +636,74 @@
       }
     });
 
-    renderStats();
+    // ── Init slider ───────────────────────────────────────────────────────────
+    (function initSlider() {
+      const slider = document.getElementById('monthsSlider');
+      const maxMonths = getDataMonthsRange();
+      slider.max = maxMonths;
+      slider.value = maxMonths;
+      updateSliderLabel(maxMonths, maxMonths);
+    })();
+
+    updateAll();
 
     // ── Checkbox handlers ─────────────────────────────────────────────────────
     ['mean','p50','p85','p95'].forEach(key => {
       document.getElementById(`chk-${key}`).addEventListener('change', function() {
         visible[key] = this.checked;
-        chart.options.plugins.annotation.annotations = buildAnnotations();
-        chart.update();
+        updateAll();
       });
+    });
+
+    // ── Slider handler ────────────────────────────────────────────────────────
+    document.getElementById('monthsSlider').addEventListener('input', function() {
+      const slider = document.getElementById('monthsSlider');
+      const val = parseInt(this.value, 10);
+      const max = parseInt(slider.max, 10);
+      monthsBack = (val >= max) ? 0 : val;
+      updateSliderLabel(val, max);
+      updateAll();
+    });
+
+    // ── Add-data form handler ─────────────────────────────────────────────────
+    document.getElementById('btnAdd').addEventListener('click', function() {
+      const dateVal = document.getElementById('newDate').value;
+      const sizeVal = document.getElementById('newSize').value;
+      const daysVal = parseInt(document.getElementById('newDays').value, 10);
+      const feedback = document.getElementById('formFeedback');
+
+      if (!dateVal) {
+        feedback.style.color = '#e53e3e';
+        feedback.textContent = 'Podaj datę ukończenia.';
+        return;
+      }
+      if (!daysVal || daysVal < 1) {
+        feedback.style.color = '#e53e3e';
+        feedback.textContent = 'Podaj poprawny czas realizacji (min. 1 dzień).';
+        return;
+      }
+
+      rawData.push({ date: dateVal, size: sizeVal, days: daysVal });
+      rawData.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      // Extend slider range if needed
+      const slider = document.getElementById('monthsSlider');
+      const newMax = getDataMonthsRange();
+      const wasAtMax = parseInt(slider.value, 10) >= parseInt(slider.max, 10);
+      slider.max = newMax;
+      if (wasAtMax) {
+        slider.value = newMax;
+        monthsBack = 0;
+        updateSliderLabel(newMax, newMax);
+      }
+
+      updateAll();
+
+      document.getElementById('newDate').value = '';
+      document.getElementById('newDays').value = '';
+      feedback.style.color = '#10b981';
+      feedback.textContent = `✓ Dodano: ${dateVal} · ${sizeVal} · ${daysVal} dni`;
+      setTimeout(() => { feedback.textContent = ''; }, 3000);
     });
   </script>
 </body>
