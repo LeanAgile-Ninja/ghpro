@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monte Carlo – Prognoza Backlogu v2</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #f4f6fb;
+      color: #2d3748;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: #1a202c;
+      letter-spacing: -0.3px;
+    }
+
+    .subtitle {
+      font-size: 0.9rem;
+      color: #718096;
+      margin-bottom: 28px;
+    }
+
+    .dashboard {
+      background: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      padding: 28px 32px;
+      width: 100%;
+      max-width: 1120px;
+    }
+
+    /* ── Slider section ───────────────────────────────────────────────── */
+    .slider-section {
+      background: #f0f4ff;
+      border: 1px solid #c7d2fe;
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-bottom: 24px;
+    }
+
+    .slider-section-title {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #374151;
+      margin-bottom: 14px;
+    }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .slider-label-left {
+      font-size: 0.82rem;
+      color: #6b7280;
+      white-space: nowrap;
+    }
+
+    input[type="range"] {
+      flex: 1;
+      min-width: 200px;
+      height: 6px;
+      border-radius: 3px;
+      accent-color: #4f46e5;
+      cursor: pointer;
+    }
+
+    .slider-value-badge {
+      background: #4f46e5;
+      color: #fff;
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      white-space: nowrap;
+      min-width: 80px;
+      text-align: center;
+    }
+
+    .slider-ticks {
+      display: flex;
+      justify-content: space-between;
+      padding: 0 2px;
+      margin-top: 6px;
+    }
+
+    .slider-tick {
+      font-size: 0.7rem;
+      color: #9ca3af;
+    }
+
+    .slider-summary {
+      margin-top: 12px;
+      font-size: 0.82rem;
+      color: #4b5563;
+    }
+
+    .slider-summary strong {
+      color: #4338ca;
+    }
+
+    /* ── Parameters strip ─────────────────────────────────────────────── */
+    .params-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+
+    .param-chip {
+      background: #eef2ff;
+      border: 1px solid #c7d2fe;
+      border-radius: 8px;
+      padding: 7px 14px;
+      font-size: 0.8rem;
+      color: #4338ca;
+    }
+
+    .param-chip span { font-weight: 700; }
+
+    /* ── KPI cards ────────────────────────────────────────────────────── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .kpi-card {
+      border-radius: 12px;
+      padding: 18px 20px;
+      border: 1px solid transparent;
+    }
+
+    .kpi-card.blue   { background: #eff6ff; border-color: #bfdbfe; }
+    .kpi-card.orange { background: #fff7ed; border-color: #fed7aa; }
+    .kpi-card.green  { background: #f0fdf4; border-color: #bbf7d0; }
+
+    .kpi-num {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: #6b7280;
+      margin-bottom: 6px;
+    }
+
+    .kpi-question {
+      font-size: 0.87rem;
+      color: #374151;
+      margin-bottom: 12px;
+      min-height: 38px;
+      line-height: 1.4;
+    }
+
+    .kpi-value {
+      font-size: 1.45rem;
+      font-weight: 800;
+      color: #1a202c;
+      line-height: 1.2;
+    }
+
+    .kpi-sub {
+      font-size: 0.76rem;
+      color: #6b7280;
+      margin-top: 5px;
+    }
+
+    /* ── Section divider ──────────────────────────────────────────────── */
+    .divider {
+      border: none;
+      border-top: 1px solid #e2e8f0;
+      margin: 24px 0;
+    }
+
+    /* ── Charts row ───────────────────────────────────────────────────── */
+    .charts-row {
+      display: flex;
+      gap: 28px;
+      align-items: flex-start;
+    }
+
+    .chart-panel { flex: 1; min-width: 0; }
+
+    .chart-panel-title {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #374151;
+      margin-bottom: 6px;
+    }
+
+    .chart-panel-sub {
+      font-size: 0.76rem;
+      color: #9ca3af;
+      margin-bottom: 12px;
+    }
+
+    .chart-wrap {
+      position: relative;
+      height: 290px;
+    }
+
+    /* ── Legend row ───────────────────────────────────────────────────── */
+    .legend-row {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.78rem;
+      color: #4b5563;
+    }
+
+    .legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+
+    /* ── Probability table ────────────────────────────────────────────── */
+    .prob-section h3 {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #374151;
+      margin-bottom: 10px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+
+    th {
+      background: #f8fafc;
+      text-align: left;
+      padding: 9px 14px;
+      color: #6b7280;
+      font-weight: 700;
+      border-bottom: 2px solid #e2e8f0;
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 8px 14px;
+      border-bottom: 1px solid #f1f5f9;
+      color: #374151;
+    }
+
+    tr:hover td { background: #f8fafc; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      margin-left: 6px;
+    }
+
+    .badge-indigo { background: #e0e7ff; color: #4338ca; }
+    .badge-orange { background: #ffedd5; color: #c2410c; }
+
+    .pct-bar-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .pct-bar {
+      height: 8px;
+      border-radius: 4px;
+      background: #6366f1;
+      transition: width 0.3s;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Symulacja Monte Carlo – Prognoza Backlogu v2</h1>
+<p class="subtitle">10 000 scenariuszy · Start: 4 maja 2026 · Sprinty 2-tygodniowe</p>
+
+<div class="dashboard">
+
+  <!-- Slider: backlog growth rate -->
+  <div class="slider-section">
+    <div class="slider-section-title">⚙️ Parametr: Stopień przyrostu liczby wymagań</div>
+    <div class="slider-row">
+      <span class="slider-label-left">0%</span>
+      <input type="range" id="growthSlider" min="0" max="100" step="10" value="0">
+      <span class="slider-label-left">100%</span>
+      <div class="slider-value-badge" id="growthBadge">+0%</div>
+    </div>
+    <div class="slider-ticks">
+      <span class="slider-tick">0%</span>
+      <span class="slider-tick">10%</span>
+      <span class="slider-tick">20%</span>
+      <span class="slider-tick">30%</span>
+      <span class="slider-tick">40%</span>
+      <span class="slider-tick">50%</span>
+      <span class="slider-tick">60%</span>
+      <span class="slider-tick">70%</span>
+      <span class="slider-tick">80%</span>
+      <span class="slider-tick">90%</span>
+      <span class="slider-tick">100%</span>
+    </div>
+    <div class="slider-summary">
+      Bazowy backlog: <strong>62 elementy</strong> · Przyrost: <strong id="growthDelta">+0 el.</strong> · Efektywny backlog: <strong id="effectiveBacklog">62 el.</strong>
+    </div>
+  </div>
+
+  <!-- Parameters -->
+  <div class="params-row">
+    <div class="param-chip">Bazowy backlog: <span>62 elementy</span></div>
+    <div class="param-chip">Aktualny backlog: <span id="chipBacklog">62 el.</span></div>
+    <div class="param-chip">Start prac: <span>4 maja 2026 (pon.)</span></div>
+    <div class="param-chip">Długość sprintu: <span>2 tygodnie</span></div>
+    <div class="param-chip">Historyczna przepustowość (el./sprint): <span>5, 4, 4, 5, 6, 4, 2, 3, 2, 5, 6</span></div>
+    <div class="param-chip">Liczba symulacji: <span>10 000</span></div>
+  </div>
+
+  <!-- KPI cards -->
+  <div class="kpi-grid">
+    <div class="kpi-card blue">
+      <div class="kpi-num">Pytanie 1</div>
+      <div class="kpi-question" id="kpi1-q">Jaką datę ukończenia 85% pozycji backlogu prognozujesz?</div>
+      <div class="kpi-value" id="kpi1-val">–</div>
+      <div class="kpi-sub" id="kpi1-sub"></div>
+    </div>
+    <div class="kpi-card orange">
+      <div class="kpi-num">Pytanie 2</div>
+      <div class="kpi-question" id="kpi2-q">Jaką datę ukończenia całości 62 elementów backlogu?</div>
+      <div class="kpi-value" id="kpi2-val">–</div>
+      <div class="kpi-sub" id="kpi2-sub"></div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-num">Pytanie 3</div>
+      <div class="kpi-question">Ile jesteśmy w stanie zrealizować do końca sierpnia 2026?</div>
+      <div class="kpi-value" id="kpi3-val">–</div>
+      <div class="kpi-sub" id="kpi3-sub"></div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- Charts -->
+  <div class="charts-row">
+
+    <!-- Chart 1: completion of full backlog -->
+    <div class="chart-panel">
+      <div class="chart-panel-title" id="chartAllTitle">Kiedy ukończymy cały backlog? (62 elementy)</div>
+      <div class="chart-panel-sub">Rozkład liczby sprintów potrzebnych do realizacji wszystkich elementów</div>
+      <div class="chart-wrap"><canvas id="chartAll"></canvas></div>
+      <div class="legend-row">
+        <div class="legend-item"><div class="legend-dot" style="background:#3b82f6;"></div> ≤ P50 (mediana)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#f97316;"></div> P50 – P85</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#ef4444;"></div> > P85</div>
+      </div>
+    </div>
+
+    <!-- Chart 2: items by end of August -->
+    <div class="chart-panel">
+      <div class="chart-panel-title">Ile elementów do końca sierpnia 2026?</div>
+      <div class="chart-panel-sub">Rozkład liczby zrealizowanych elementów po <span id="sprintsToAugLabel">–</span> sprintach (do 31.08.2026)</div>
+      <div class="chart-wrap"><canvas id="chartAug"></canvas></div>
+      <div class="legend-row">
+        <div class="legend-item"><div class="legend-dot" style="background:#10b981;"></div> < Mediana</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#3b82f6;"></div> ≥ Mediana</div>
+      </div>
+    </div>
+
+  </div>
+
+  <hr class="divider">
+
+  <!-- Probability table -->
+  <div class="prob-section">
+    <h3 id="probTableTitle">Tabela skumulowanego prawdopodobieństwa ukończenia całego backlogu</h3>
+    <table id="probTable">
+      <thead>
+        <tr>
+          <th>Sprint #</th>
+          <th>Data zakończenia sprintu</th>
+          <th>Scenariusze w tym sprincie</th>
+          <th>Skumulowane prawdopodobieństwo</th>
+        </tr>
+      </thead>
+      <tbody id="probTbody"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+// ── Fixed configuration ───────────────────────────────────────────────────────
+const THROUGHPUT      = [5, 4, 4, 5, 6, 4, 2, 3, 2, 5, 6];
+const N_SIM           = 10000;
+const BASE_BACKLOG    = 62;
+
+const START   = new Date(2026, 4, 4);   // May 4, 2026
+const END_AUG = new Date(2026, 7, 31);  // Aug 31, 2026
+
+const DAYS_TO_AUG    = Math.round((END_AUG - START) / 86400000);
+const SPRINTS_TO_AUG = Math.floor(DAYS_TO_AUG / 14);
+
+document.getElementById('sprintsToAugLabel').textContent = SPRINTS_TO_AUG + ' pełnych sprintów';
+
+// ── Chart instances (kept for destroy/recreate) ───────────────────────────────
+let chartAllInstance = null;
+let chartAugInstance = null;
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function sprintEndDate(n) {
+  const d = new Date(START);
+  d.setDate(d.getDate() + n * 14);
+  return d;
+}
+
+function formatDate(d) {
+  return d.toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function formatDateShort(d) {
+  return d.toLocaleDateString('pl-PL', { day: 'numeric', month: 'short' });
+}
+
+function pctValue(sorted, p) {
+  const idx = (p / 100) * (sorted.length - 1);
+  const lo  = Math.floor(idx);
+  const hi  = Math.ceil(idx);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+}
+
+function sample() {
+  return THROUGHPUT[Math.floor(Math.random() * THROUGHPUT.length)];
+}
+
+// ── Main simulation + render function ────────────────────────────────────────
+function runSimulation(backlog) {
+  const target85 = Math.ceil(0.85 * backlog);
+
+  // Monte Carlo
+  const sprintsTo85arr  = [];
+  const sprintsToAllarr = [];
+  const itemsByAugarr   = [];
+
+  for (let i = 0; i < N_SIM; i++) {
+    let total = 0, sprint = 0, s85 = null;
+    while (total < backlog) {
+      total += sample();
+      sprint++;
+      if (s85 === null && total >= target85) s85 = sprint;
+    }
+    sprintsTo85arr.push(s85);
+    sprintsToAllarr.push(sprint);
+
+    let aug = 0;
+    for (let s = 0; s < SPRINTS_TO_AUG; s++) aug += sample();
+    itemsByAugarr.push(Math.min(aug, backlog));
+  }
+
+  sprintsTo85arr.sort((a, b) => a - b);
+  sprintsToAllarr.sort((a, b) => a - b);
+  itemsByAugarr.sort((a, b) => a - b);
+
+  // Percentiles
+  const p50All = Math.ceil(pctValue(sprintsToAllarr, 50));
+  const p85All = Math.ceil(pctValue(sprintsToAllarr, 85));
+  const p50_85 = Math.ceil(pctValue(sprintsTo85arr,  50));
+  const p85_85 = Math.ceil(pctValue(sprintsTo85arr,  85));
+
+  const augP15 = Math.round(pctValue(itemsByAugarr, 15));
+  const augP50 = Math.round(pctValue(itemsByAugarr, 50));
+  const augP85 = Math.round(pctValue(itemsByAugarr, 85));
+
+  // KPI cards
+  document.getElementById('kpi1-q').textContent =
+    `Jaką datę ukończenia 85% pozycji backlogu (${target85} el.) prognozujesz?`;
+  document.getElementById('kpi1-val').textContent = formatDate(sprintEndDate(p85_85));
+  document.getElementById('kpi1-sub').textContent =
+    `P85 (85% scenariuszy) · ${target85} z ${backlog} el. · Sprint ${p85_85} · Mediana: ${formatDate(sprintEndDate(p50_85))}`;
+
+  document.getElementById('kpi2-q').textContent =
+    `Jaką datę ukończenia całości ${backlog} elementów backlogu?`;
+  document.getElementById('kpi2-val').textContent = formatDate(sprintEndDate(p85All));
+  document.getElementById('kpi2-sub').textContent =
+    `P85 (85% scenariuszy) · Sprint ${p85All} · Mediana (P50): ${formatDate(sprintEndDate(p50All))}`;
+
+  document.getElementById('kpi3-val').textContent = `${augP50} elementów`;
+  document.getElementById('kpi3-sub').textContent =
+    `Mediana (P50) · zakres P15–P85: ${augP15}–${augP85} el. · ${SPRINTS_TO_AUG} sprintów (do 31.08.2026)`;
+
+  document.getElementById('chartAllTitle').textContent =
+    `Kiedy ukończymy cały backlog? (${backlog} elementów)`;
+
+  document.getElementById('probTableTitle').textContent =
+    `Tabela skumulowanego prawdopodobieństwa ukończenia całego backlogu (${backlog} el.)`;
+
+  // ── Chart 1: sprints to complete all items ──────────────────────────────────
+  const minS = sprintsToAllarr[0];
+  const maxS = sprintsToAllarr[sprintsToAllarr.length - 1];
+
+  const allBins = {};
+  for (let s = minS; s <= maxS; s++) allBins[s] = 0;
+  sprintsToAllarr.forEach(s => { allBins[s]++; });
+
+  const allSprints = Object.keys(allBins).map(Number);
+  const allCounts  = allSprints.map(s => allBins[s]);
+  const allColors  = allSprints.map(s => {
+    if (s <= p50All) return 'rgba(59,130,246,0.75)';
+    if (s <= p85All) return 'rgba(249,115,22,0.75)';
+    return 'rgba(239,68,68,0.75)';
+  });
+  const allLabels = allSprints.map(s => formatDateShort(sprintEndDate(s)));
+
+  const p50AllIdx = allSprints.indexOf(p50All);
+  const p85AllIdx = allSprints.indexOf(p85All);
+
+  if (chartAllInstance) { chartAllInstance.destroy(); chartAllInstance = null; }
+
+  const ctxAll = document.getElementById('chartAll').getContext('2d');
+  chartAllInstance = new Chart(ctxAll, {
+    type: 'bar',
+    data: {
+      labels: allLabels,
+      datasets: [{
+        data: allCounts,
+        backgroundColor: allColors,
+        borderWidth: 0,
+        borderRadius: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title:  (items) => `Sprint ${allSprints[items[0].dataIndex]} · ${formatDate(sprintEndDate(allSprints[items[0].dataIndex]))}`,
+            label:  (item)  => ` ${item.raw} scenariuszy (${(item.raw / N_SIM * 100).toFixed(1)}%)`,
+          }
+        },
+        annotation: {
+          annotations: {
+            p50line: {
+              type: 'line',
+              xMin: p50AllIdx, xMax: p50AllIdx,
+              borderColor: '#4f46e5',
+              borderWidth: 2,
+              borderDash: [5, 3],
+              label: {
+                display: true,
+                content: `P50 · Sprint ${p50All}`,
+                backgroundColor: '#4f46e5',
+                color: '#fff',
+                font: { size: 11, weight: 'bold' },
+                padding: { x: 7, y: 4 },
+                position: 'start',
+                yAdjust: -8,
+              }
+            },
+            p85line: {
+              type: 'line',
+              xMin: p85AllIdx, xMax: p85AllIdx,
+              borderColor: '#ea580c',
+              borderWidth: 2,
+              borderDash: [5, 3],
+              label: {
+                display: true,
+                content: `P85 · Sprint ${p85All}`,
+                backgroundColor: '#ea580c',
+                color: '#fff',
+                font: { size: 11, weight: 'bold' },
+                padding: { x: 7, y: 4 },
+                position: 'start',
+                yAdjust: 20,
+              }
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          title: { display: true, text: 'Data zakończenia sprintu', font: { size: 11 }, color: '#718096' },
+          ticks: { color: '#718096', font: { size: 9 }, maxRotation: 45, autoSkip: true, maxTicksLimit: 20 },
+          grid: { display: false },
+        },
+        y: {
+          title: { display: true, text: 'Liczba scenariuszy', font: { size: 11 }, color: '#718096' },
+          ticks: { color: '#718096', font: { size: 10 } },
+          grid: { color: '#f0f0f0' },
+          beginAtZero: true,
+        }
+      }
+    }
+  });
+
+  // ── Chart 2: items delivered by end of August ───────────────────────────────
+  const BIN = 2;
+  const augBinsMap = {};
+  itemsByAugarr.forEach(v => {
+    const bin = Math.floor(v / BIN) * BIN;
+    augBinsMap[bin] = (augBinsMap[bin] || 0) + 1;
+  });
+
+  const augBinKeys   = Object.keys(augBinsMap).map(Number).sort((a, b) => a - b);
+  const augBinLabels = augBinKeys.map(b => (b + BIN - 1 >= backlog) ? `${b}+` : `${b}–${b + BIN - 1}`);
+  const augBinCounts = augBinKeys.map(b => augBinsMap[b]);
+  const augBinColors = augBinKeys.map(b => b < augP50 ? 'rgba(16,185,129,0.7)' : 'rgba(59,130,246,0.75)');
+
+  const p50AugBin = Math.floor(augP50 / BIN) * BIN;
+  const p50AugIdx = augBinKeys.indexOf(p50AugBin);
+
+  if (chartAugInstance) { chartAugInstance.destroy(); chartAugInstance = null; }
+
+  const ctxAug = document.getElementById('chartAug').getContext('2d');
+  chartAugInstance = new Chart(ctxAug, {
+    type: 'bar',
+    data: {
+      labels: augBinLabels,
+      datasets: [{
+        data: augBinCounts,
+        backgroundColor: augBinColors,
+        borderWidth: 0,
+        borderRadius: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title:  (items) => `Elementy: ${augBinLabels[items[0].dataIndex]}`,
+            label:  (item)  => ` ${item.raw} scenariuszy (${(item.raw / N_SIM * 100).toFixed(1)}%)`,
+          }
+        },
+        annotation: {
+          annotations: {
+            p50aug: {
+              type: 'line',
+              xMin: p50AugIdx, xMax: p50AugIdx,
+              borderColor: '#4f46e5',
+              borderWidth: 2,
+              borderDash: [5, 3],
+              label: {
+                display: true,
+                content: `P50: ${augP50} el.`,
+                backgroundColor: '#4f46e5',
+                color: '#fff',
+                font: { size: 11, weight: 'bold' },
+                padding: { x: 7, y: 4 },
+                position: 'start',
+                yAdjust: -8,
+              }
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          title: { display: true, text: 'Liczba zrealizowanych elementów', font: { size: 11 }, color: '#718096' },
+          ticks: { color: '#718096', font: { size: 10 } },
+          grid: { display: false },
+        },
+        y: {
+          title: { display: true, text: 'Liczba scenariuszy', font: { size: 11 }, color: '#718096' },
+          ticks: { color: '#718096', font: { size: 10 } },
+          grid: { color: '#f0f0f0' },
+          beginAtZero: true,
+        }
+      }
+    }
+  });
+
+  // ── Probability table ───────────────────────────────────────────────────────
+  const tbody = document.getElementById('probTbody');
+  tbody.innerHTML = '';
+  let cumulative = 0;
+  const tableMax = Math.min(maxS, p85All + 2);
+  for (let s = minS; s <= tableMax; s++) {
+    const cnt = allBins[s] || 0;
+    if (cnt === 0 && s < p50All) continue;
+    cumulative += cnt;
+    const cumPct = (cumulative / N_SIM * 100).toFixed(1);
+    const spPct  = (cnt / N_SIM * 100).toFixed(1);
+    const date   = sprintEndDate(s);
+    let badge = '';
+    if (s === p50All) badge = '<span class="badge badge-indigo">P50</span>';
+    if (s === p85All) badge = '<span class="badge badge-orange">P85</span>';
+
+    tbody.insertAdjacentHTML('beforeend', `
+      <tr>
+        <td>Sprint ${s}${badge}</td>
+        <td>${formatDate(date)}</td>
+        <td>${spPct}%</td>
+        <td>
+          <div class="pct-bar-wrap">
+            <div class="pct-bar" style="width:${Math.min(parseFloat(cumPct), 100) * 1.8}px;
+                 background:${parseFloat(cumPct) >= 85 ? '#ea580c' : '#6366f1'};"></div>
+            <span>${cumPct}%</span>
+          </div>
+        </td>
+      </tr>
+    `);
+  }
+}
+
+// ── Slider logic ──────────────────────────────────────────────────────────────
+function updateFromSlider(growthPct) {
+  const delta    = Math.round(BASE_BACKLOG * growthPct / 100);
+  const backlog  = BASE_BACKLOG + delta;
+
+  document.getElementById('growthBadge').textContent     = `+${growthPct}%`;
+  document.getElementById('growthDelta').textContent     = `+${delta} el.`;
+  document.getElementById('effectiveBacklog').textContent = `${backlog} el.`;
+  document.getElementById('chipBacklog').textContent      = `${backlog} el.`;
+
+  runSimulation(backlog);
+}
+
+const slider = document.getElementById('growthSlider');
+slider.addEventListener('input', () => updateFromSlider(Number(slider.value)));
+
+// Initial render
+updateFromSlider(0);
+</script>
+</body>
+</html>
