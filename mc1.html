@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monte Carlo – Prognoza Backlogu</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #f4f6fb;
+      color: #2d3748;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: #1a202c;
+      letter-spacing: -0.3px;
+    }
+
+    .subtitle {
+      font-size: 0.9rem;
+      color: #718096;
+      margin-bottom: 28px;
+    }
+
+    .dashboard {
+      background: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      padding: 28px 32px;
+      width: 100%;
+      max-width: 1120px;
+    }
+
+    /* ── Parameters strip ─────────────────────────────────────────────── */
+    .params-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+
+    .param-chip {
+      background: #eef2ff;
+      border: 1px solid #c7d2fe;
+      border-radius: 8px;
+      padding: 7px 14px;
+      font-size: 0.8rem;
+      color: #4338ca;
+    }
+
+    .param-chip span { font-weight: 700; }
+
+    /* ── KPI cards ────────────────────────────────────────────────────── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .kpi-card {
+      border-radius: 12px;
+      padding: 18px 20px;
+      border: 1px solid transparent;
+    }
+
+    .kpi-card.blue   { background: #eff6ff; border-color: #bfdbfe; }
+    .kpi-card.orange { background: #fff7ed; border-color: #fed7aa; }
+    .kpi-card.green  { background: #f0fdf4; border-color: #bbf7d0; }
+
+    .kpi-num {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: #6b7280;
+      margin-bottom: 6px;
+    }
+
+    .kpi-question {
+      font-size: 0.87rem;
+      color: #374151;
+      margin-bottom: 12px;
+      min-height: 38px;
+      line-height: 1.4;
+    }
+
+    .kpi-value {
+      font-size: 1.45rem;
+      font-weight: 800;
+      color: #1a202c;
+      line-height: 1.2;
+    }
+
+    .kpi-sub {
+      font-size: 0.76rem;
+      color: #6b7280;
+      margin-top: 5px;
+    }
+
+    /* ── Section divider ──────────────────────────────────────────────── */
+    .divider {
+      border: none;
+      border-top: 1px solid #e2e8f0;
+      margin: 24px 0;
+    }
+
+    /* ── Charts row ───────────────────────────────────────────────────── */
+    .charts-row {
+      display: flex;
+      gap: 28px;
+      align-items: flex-start;
+    }
+
+    .chart-panel { flex: 1; min-width: 0; }
+
+    .chart-panel-title {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #374151;
+      margin-bottom: 6px;
+    }
+
+    .chart-panel-sub {
+      font-size: 0.76rem;
+      color: #9ca3af;
+      margin-bottom: 12px;
+    }
+
+    .chart-wrap {
+      position: relative;
+      height: 290px;
+    }
+
+    /* ── Legend row ───────────────────────────────────────────────────── */
+    .legend-row {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.78rem;
+      color: #4b5563;
+    }
+
+    .legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+
+    /* ── Probability table ────────────────────────────────────────────── */
+    .prob-section h3 {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #374151;
+      margin-bottom: 10px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+
+    th {
+      background: #f8fafc;
+      text-align: left;
+      padding: 9px 14px;
+      color: #6b7280;
+      font-weight: 700;
+      border-bottom: 2px solid #e2e8f0;
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 8px 14px;
+      border-bottom: 1px solid #f1f5f9;
+      color: #374151;
+    }
+
+    tr:hover td { background: #f8fafc; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      margin-left: 6px;
+    }
+
+    .badge-indigo { background: #e0e7ff; color: #4338ca; }
+    .badge-orange { background: #ffedd5; color: #c2410c; }
+
+    .pct-bar-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .pct-bar {
+      height: 8px;
+      border-radius: 4px;
+      background: #6366f1;
+      transition: width 0.3s;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Symulacja Monte Carlo – Prognoza Backlogu</h1>
+<p class="subtitle">10 000 scenariuszy · Start: 4 maja 2026 · Sprinty 2-tygodniowe</p>
+
+<div class="dashboard">
+
+  <!-- Parameters -->
+  <div class="params-row">
+    <div class="param-chip">Backlog: <span>62 elementy</span></div>
+    <div class="param-chip">Start prac: <span>4 maja 2026 (pon.)</span></div>
+    <div class="param-chip">Długość sprintu: <span>2 tygodnie</span></div>
+    <div class="param-chip">Historyczna przepustowość (el./sprint): <span>5, 4, 4, 5, 6, 4, 2, 3, 2, 5, 6</span></div>
+    <div class="param-chip">Liczba symulacji: <span>10 000</span></div>
+  </div>
+
+  <!-- KPI cards -->
+  <div class="kpi-grid">
+    <div class="kpi-card blue">
+      <div class="kpi-num">Pytanie 1</div>
+      <div class="kpi-question">Jaką datę ukończenia 85% pozycji backlogu prognozujesz?</div>
+      <div class="kpi-value" id="kpi1-val">–</div>
+      <div class="kpi-sub" id="kpi1-sub"></div>
+    </div>
+    <div class="kpi-card orange">
+      <div class="kpi-num">Pytanie 2</div>
+      <div class="kpi-question">Jaką datę ukończenia całości 62 elementów backlogu?</div>
+      <div class="kpi-value" id="kpi2-val">–</div>
+      <div class="kpi-sub" id="kpi2-sub"></div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-num">Pytanie 3</div>
+      <div class="kpi-question">Ile jesteśmy w stanie zrealizować do końca sierpnia 2026?</div>
+      <div class="kpi-value" id="kpi3-val">–</div>
+      <div class="kpi-sub" id="kpi3-sub"></div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- Charts -->
+  <div class="charts-row">
+
+    <!-- Chart 1: completion of full backlog -->
+    <div class="chart-panel">
+      <div class="chart-panel-title">Kiedy ukończymy cały backlog? (62 elementy)</div>
+      <div class="chart-panel-sub">Rozkład liczby sprintów potrzebnych do realizacji wszystkich 62 elementów</div>
+      <div class="chart-wrap"><canvas id="chartAll"></canvas></div>
+      <div class="legend-row">
+        <div class="legend-item"><div class="legend-dot" style="background:#3b82f6;"></div> ≤ P50 (mediana)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#f97316;"></div> P50 – P85</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#ef4444;"></div> > P85</div>
+      </div>
+    </div>
+
+    <!-- Chart 2: items by end of August -->
+    <div class="chart-panel">
+      <div class="chart-panel-title">Ile elementów do końca sierpnia 2026?</div>
+      <div class="chart-panel-sub">Rozkład liczby zrealizowanych elementów po <span id="sprintsToAugLabel">–</span> sprintach (do 31.08.2026)</div>
+      <div class="chart-wrap"><canvas id="chartAug"></canvas></div>
+      <div class="legend-row">
+        <div class="legend-item"><div class="legend-dot" style="background:#10b981;"></div> < Mediana</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#3b82f6;"></div> ≥ Mediana</div>
+      </div>
+    </div>
+
+  </div>
+
+  <hr class="divider">
+
+  <!-- Probability table -->
+  <div class="prob-section">
+    <h3>Tabela skumulowanego prawdopodobieństwa ukończenia całego backlogu</h3>
+    <table id="probTable">
+      <thead>
+        <tr>
+          <th>Sprint #</th>
+          <th>Data zakończenia sprintu</th>
+          <th>Scenariusze w tym sprincie</th>
+          <th>Skumulowane prawdopodobieństwo</th>
+        </tr>
+      </thead>
+      <tbody id="probTbody"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+// ── Configuration ────────────────────────────────────────────────────────────
+const THROUGHPUT    = [5, 4, 4, 5, 6, 4, 2, 3, 2, 5, 6];
+const N_SIM         = 10000;
+const BACKLOG       = 62;
+const TARGET_85PCT  = Math.ceil(0.85 * BACKLOG); // 53
+
+// Start: first Monday of May 2026
+const START     = new Date(2026, 4, 4);   // May 4, 2026
+const END_AUG   = new Date(2026, 7, 31);  // Aug 31, 2026
+
+// How many full 2-week sprints fit before end of August
+const DAYS_TO_AUG    = Math.round((END_AUG - START) / 86400000);
+const SPRINTS_TO_AUG = Math.floor(DAYS_TO_AUG / 14);
+
+document.getElementById('sprintsToAugLabel').textContent = SPRINTS_TO_AUG + ' pełnych sprintów';
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function sprintEndDate(n) {
+  const d = new Date(START);
+  d.setDate(d.getDate() + n * 14);
+  return d;
+}
+
+function formatDate(d) {
+  return d.toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function formatDateShort(d) {
+  return d.toLocaleDateString('pl-PL', { day: 'numeric', month: 'short' });
+}
+
+function pctValue(sorted, p) {
+  const idx = (p / 100) * (sorted.length - 1);
+  const lo  = Math.floor(idx);
+  const hi  = Math.ceil(idx);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+}
+
+function sample() {
+  return THROUGHPUT[Math.floor(Math.random() * THROUGHPUT.length)];
+}
+
+// ── Monte Carlo simulation ────────────────────────────────────────────────────
+const sprintsTo85arr  = [];
+const sprintsToAllarr = [];
+const itemsByAugarr   = [];
+
+for (let i = 0; i < N_SIM; i++) {
+  // Simulate until all 62 items are done
+  let total = 0, sprint = 0, s85 = null;
+  while (total < BACKLOG) {
+    total += sample();
+    sprint++;
+    if (s85 === null && total >= TARGET_85PCT) s85 = sprint;
+  }
+  sprintsTo85arr.push(s85);
+  sprintsToAllarr.push(sprint);
+
+  // Simulate items delivered in SPRINTS_TO_AUG sprints
+  let aug = 0;
+  for (let s = 0; s < SPRINTS_TO_AUG; s++) aug += sample();
+  itemsByAugarr.push(Math.min(aug, BACKLOG));
+}
+
+sprintsTo85arr.sort((a, b) => a - b);
+sprintsToAllarr.sort((a, b) => a - b);
+itemsByAugarr.sort((a, b) => a - b);
+
+// ── Percentile computation ────────────────────────────────────────────────────
+const p50All  = Math.ceil(pctValue(sprintsToAllarr, 50));
+const p85All  = Math.ceil(pctValue(sprintsToAllarr, 85));
+const p50_85  = Math.ceil(pctValue(sprintsTo85arr,  50));
+const p85_85  = Math.ceil(pctValue(sprintsTo85arr,  85));
+
+const augP15  = Math.round(pctValue(itemsByAugarr, 15));
+const augP50  = Math.round(pctValue(itemsByAugarr, 50));
+const augP85  = Math.round(pctValue(itemsByAugarr, 85));
+
+// ── Update KPI cards ──────────────────────────────────────────────────────────
+document.getElementById('kpi1-val').textContent = formatDate(sprintEndDate(p85_85));
+document.getElementById('kpi1-sub').textContent =
+  `P85 (85% scenariuszy) · ${TARGET_85PCT} z ${BACKLOG} el. · Sprint ${p85_85} · Mediana: ${formatDate(sprintEndDate(p50_85))}`;
+
+document.getElementById('kpi2-val').textContent = formatDate(sprintEndDate(p85All));
+document.getElementById('kpi2-sub').textContent =
+  `P85 (85% scenariuszy) · Sprint ${p85All} · Mediana (P50): ${formatDate(sprintEndDate(p50All))}`;
+
+document.getElementById('kpi3-val').textContent = `${augP50} elementów`;
+document.getElementById('kpi3-sub').textContent =
+  `Mediana (P50) · zakres P15–P85: ${augP15}–${augP85} el. · ${SPRINTS_TO_AUG} sprintów (do 31.08.2026)`;
+
+// ── Build histogram: sprints to complete all 62 items ────────────────────────
+const minS = sprintsToAllarr[0];
+const maxS = sprintsToAllarr[sprintsToAllarr.length - 1];
+
+const allBins = {};
+for (let s = minS; s <= maxS; s++) allBins[s] = 0;
+sprintsToAllarr.forEach(s => { allBins[s]++; });
+
+const allSprints = Object.keys(allBins).map(Number);
+const allCounts  = allSprints.map(s => allBins[s]);
+const allColors  = allSprints.map(s => {
+  if (s <= p50All) return 'rgba(59,130,246,0.75)';
+  if (s <= p85All) return 'rgba(249,115,22,0.75)';
+  return 'rgba(239,68,68,0.75)';
+});
+const allLabels = allSprints.map(s => formatDateShort(sprintEndDate(s)));
+
+const p50AllIdx = allSprints.indexOf(p50All);
+const p85AllIdx = allSprints.indexOf(p85All);
+
+const ctxAll = document.getElementById('chartAll').getContext('2d');
+new Chart(ctxAll, {
+  type: 'bar',
+  data: {
+    labels: allLabels,
+    datasets: [{
+      data: allCounts,
+      backgroundColor: allColors,
+      borderWidth: 0,
+      borderRadius: 2,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          title:  (items) => `Sprint ${allSprints[items[0].dataIndex]} · ${formatDate(sprintEndDate(allSprints[items[0].dataIndex]))}`,
+          label:  (item)  => ` ${item.raw} scenariuszy (${(item.raw / N_SIM * 100).toFixed(1)}%)`,
+        }
+      },
+      annotation: {
+        annotations: {
+          p50line: {
+            type: 'line',
+            xMin: p50AllIdx, xMax: p50AllIdx,
+            borderColor: '#4f46e5',
+            borderWidth: 2,
+            borderDash: [5, 3],
+            label: {
+              display: true,
+              content: `P50 · Sprint ${p50All}`,
+              backgroundColor: '#4f46e5',
+              color: '#fff',
+              font: { size: 11, weight: 'bold' },
+              padding: { x: 7, y: 4 },
+              position: 'start',
+              yAdjust: -8,
+            }
+          },
+          p85line: {
+            type: 'line',
+            xMin: p85AllIdx, xMax: p85AllIdx,
+            borderColor: '#ea580c',
+            borderWidth: 2,
+            borderDash: [5, 3],
+            label: {
+              display: true,
+              content: `P85 · Sprint ${p85All}`,
+              backgroundColor: '#ea580c',
+              color: '#fff',
+              font: { size: 11, weight: 'bold' },
+              padding: { x: 7, y: 4 },
+              position: 'start',
+              yAdjust: 20,
+            }
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        title: { display: true, text: 'Data zakończenia sprintu', font: { size: 11 }, color: '#718096' },
+        ticks: { color: '#718096', font: { size: 9 }, maxRotation: 45, autoSkip: true, maxTicksLimit: 20 },
+        grid: { display: false },
+      },
+      y: {
+        title: { display: true, text: 'Liczba scenariuszy', font: { size: 11 }, color: '#718096' },
+        ticks: { color: '#718096', font: { size: 10 } },
+        grid: { color: '#f0f0f0' },
+        beginAtZero: true,
+      }
+    }
+  }
+});
+
+// ── Build histogram: items delivered by end of August ────────────────────────
+const BIN = 2;
+const augBinsMap = {};
+itemsByAugarr.forEach(v => {
+  const bin = Math.floor(v / BIN) * BIN;
+  augBinsMap[bin] = (augBinsMap[bin] || 0) + 1;
+});
+
+const augBinKeys   = Object.keys(augBinsMap).map(Number).sort((a, b) => a - b);
+const augBinLabels = augBinKeys.map(b => (b + BIN - 1 >= BACKLOG) ? `${b}+` : `${b}–${b + BIN - 1}`);
+const augBinCounts = augBinKeys.map(b => augBinsMap[b]);
+const augBinColors = augBinKeys.map(b => b < augP50 ? 'rgba(16,185,129,0.7)' : 'rgba(59,130,246,0.75)');
+
+const p50AugBin = Math.floor(augP50 / BIN) * BIN;
+const p50AugIdx = augBinKeys.indexOf(p50AugBin);
+
+const ctxAug = document.getElementById('chartAug').getContext('2d');
+new Chart(ctxAug, {
+  type: 'bar',
+  data: {
+    labels: augBinLabels,
+    datasets: [{
+      data: augBinCounts,
+      backgroundColor: augBinColors,
+      borderWidth: 0,
+      borderRadius: 2,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          title:  (items) => `Elementy: ${augBinLabels[items[0].dataIndex]}`,
+          label:  (item)  => ` ${item.raw} scenariuszy (${(item.raw / N_SIM * 100).toFixed(1)}%)`,
+        }
+      },
+      annotation: {
+        annotations: {
+          p50aug: {
+            type: 'line',
+            xMin: p50AugIdx, xMax: p50AugIdx,
+            borderColor: '#4f46e5',
+            borderWidth: 2,
+            borderDash: [5, 3],
+            label: {
+              display: true,
+              content: `P50: ${augP50} el.`,
+              backgroundColor: '#4f46e5',
+              color: '#fff',
+              font: { size: 11, weight: 'bold' },
+              padding: { x: 7, y: 4 },
+              position: 'start',
+              yAdjust: -8,
+            }
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        title: { display: true, text: 'Liczba zrealizowanych elementów', font: { size: 11 }, color: '#718096' },
+        ticks: { color: '#718096', font: { size: 10 } },
+        grid: { display: false },
+      },
+      y: {
+        title: { display: true, text: 'Liczba scenariuszy', font: { size: 11 }, color: '#718096' },
+        ticks: { color: '#718096', font: { size: 10 } },
+        grid: { color: '#f0f0f0' },
+        beginAtZero: true,
+      }
+    }
+  }
+});
+
+// ── Probability table ─────────────────────────────────────────────────────────
+const tbody = document.getElementById('probTbody');
+let cumulative = 0;
+// Show sprints from min to just past P85
+const tableMax = Math.min(maxS, p85All + 2);
+for (let s = minS; s <= tableMax; s++) {
+  const cnt = allBins[s] || 0;
+  if (cnt === 0 && s < p50All) continue; // skip empty leading bins
+  cumulative += cnt;
+  const cumPct  = (cumulative / N_SIM * 100).toFixed(1);
+  const spPct   = (cnt / N_SIM * 100).toFixed(1);
+  const date    = sprintEndDate(s);
+  let badge = '';
+  if (s === p50All) badge = '<span class="badge badge-indigo">P50</span>';
+  if (s === p85All) badge = '<span class="badge badge-orange">P85</span>';
+
+  tbody.insertAdjacentHTML('beforeend', `
+    <tr>
+      <td>Sprint ${s}${badge}</td>
+      <td>${formatDate(date)}</td>
+      <td>${spPct}%</td>
+      <td>
+        <div class="pct-bar-wrap">
+          <div class="pct-bar" style="width:${Math.min(parseFloat(cumPct), 100) * 1.8}px;
+               background:${parseFloat(cumPct) >= 85 ? '#ea580c' : '#6366f1'};"></div>
+          <span>${cumPct}%</span>
+        </div>
+      </td>
+    </tr>
+  `);
+}
+</script>
+</body>
+</html>
