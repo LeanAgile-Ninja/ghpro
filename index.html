@@ -564,8 +564,9 @@
       }
 
       // Subtitle count
+      const displayCount = activeFilter === 'all' ? rawData.length : filteredDays.length;
       document.querySelector('.subtitle').textContent =
-        `Rozkład czasu realizacji zgłoszeń według rozmiaru (n = ${rawData.length})`;
+        `Rozkład czasu realizacji zgłoszeń według rozmiaru (n = ${displayCount})${activeFilter !== 'all' ? ` · filtr: ${activeFilter}` : ''}`;
     }
 
     // Initial render
