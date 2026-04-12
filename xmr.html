@@ -90,6 +90,45 @@
       height: 3px;
       border-radius: 2px;
     }
+    .signals-card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 24px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      margin-bottom: 24px;
+    }
+    .signals-card h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: #1a2940;
+    }
+    .signal-rules {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .signal-rule {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 0.88rem;
+    }
+    .signal-rule .badge {
+      flex-shrink: 0;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      margin-top: 1px;
+    }
+    .signal-rule .rule-desc { color: #444; flex: 1; }
+    .signal-rule .rule-tasks { color: #888; font-size: 0.82rem; margin-top: 2px; }
+    .signal-rule.rule-1 { background: rgba(239,68,68,0.08); }
+    .signal-rule.rule-2 { background: rgba(249,115,22,0.08); }
+    .signal-rule.rule-3 { background: rgba(245,158,11,0.08); }
+    .signal-rule.rule-4 { background: rgba(168,85,247,0.08); }
   </style>
 </head>
 <body>
@@ -110,18 +149,43 @@
         Czas realizacji
       </div>
       <div class="legend-item">
-        <div class="legend-dot" style="border-top: 2px dashed #f59e0b; background:transparent;"></div>
-        Mediana
-      </div>
-      <div class="legend-item">
         <div class="legend-dot" style="background:#10b981;"></div>
         Średnia (X̄)
       </div>
       <div class="legend-item">
         <div class="legend-dot" style="border-top: 2px dashed #ef4444; background:transparent;"></div>
-        UNPL / LNPL
+        UNPL / LNPL (±3σ)
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="border-top: 2px dashed #f97316; background:transparent;"></div>
+        ±2σ
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="border-top: 2px dashed #f59e0b; background:transparent;"></div>
+        ±1σ / Mediana
+      </div>
+      <div class="legend-item">
+        <div style="width:10px;height:10px;border-radius:50%;background:#ef4444;"></div>
+        Silny sygnał (poza NPL)
+      </div>
+      <div class="legend-item">
+        <div style="width:10px;height:10px;border-radius:50%;background:#f97316;"></div>
+        Umiarkowany (2/3 poza 2σ)
+      </div>
+      <div class="legend-item">
+        <div style="width:10px;height:10px;border-radius:50%;background:#f59e0b;"></div>
+        Umiarkowany trwały (3/5 poza 1σ)
+      </div>
+      <div class="legend-item">
+        <div style="width:10px;height:10px;border-radius:50%;background:#a855f7;"></div>
+        Trend (8 po jednej stronie)
       </div>
     </div>
+  </div>
+
+  <div class="signals-card">
+    <h2>Filtry sygnałów</h2>
+    <div class="signal-rules" id="signalRules"></div>
   </div>
 
   <div class="chart-card">
@@ -229,6 +293,96 @@
       </div>`;
   });
 
+  // ── Signal filters ────────────────────────────────────────────────────────
+  // sigma = 1σ in XmR context: 2.66 / 3 × MR̄
+  const sigma = (2.66 / 3) * mrMean;
+  const sigma1Upper = mean + sigma;
+  const sigma1Lower = mean - sigma;
+  const sigma2Upper = mean + 2 * sigma;
+  const sigma2Lower = mean - 2 * sigma;
+
+  // signals[i]: 0=none, 1=rule4(8-run/trend), 2=rule3(3/5 ±1σ), 3=rule2(2/3 ±2σ), 4=rule1(outside NPL)
+  // Higher number = higher priority (drawn with that color)
+  const signals = new Array(n).fill(0);
+
+  // Rule 1 – any point outside UNPL / LNPL (strong signal)
+  for (let i = 0; i < n; i++) {
+    if (cts[i] > unpl || cts[i] < lnpl) signals[i] = Math.max(signals[i], 4);
+  }
+
+  // Rule 2 – 2 of 3 consecutive points outside ±2σ on the same side (moderate)
+  for (let i = 2; i < n; i++) {
+    const w = cts.slice(i - 2, i + 1);
+    const aboveCount = w.filter(v => v > sigma2Upper).length;
+    const belowCount = w.filter(v => v < sigma2Lower).length;
+    if (aboveCount >= 2 || belowCount >= 2) {
+      for (let j = i - 2; j <= i; j++) {
+        if ((aboveCount >= 2 && cts[j] > sigma2Upper) ||
+            (belowCount >= 2 && cts[j] < sigma2Lower)) {
+          signals[j] = Math.max(signals[j], 3);
+        }
+      }
+    }
+  }
+
+  // Rule 3 – 3 of 5 consecutive points outside ±1σ on the same side (moderate persistent)
+  for (let i = 4; i < n; i++) {
+    const w = cts.slice(i - 4, i + 1);
+    const aboveCount = w.filter(v => v > sigma1Upper).length;
+    const belowCount = w.filter(v => v < sigma1Lower).length;
+    if (aboveCount >= 3 || belowCount >= 3) {
+      for (let j = i - 4; j <= i; j++) {
+        if ((aboveCount >= 3 && cts[j] > sigma1Upper) ||
+            (belowCount >= 3 && cts[j] < sigma1Lower)) {
+          signals[j] = Math.max(signals[j], 2);
+        }
+      }
+    }
+  }
+
+  // Rule 4 – 8 consecutive points all on one side of the mean (trend)
+  for (let i = 7; i < n; i++) {
+    const w = cts.slice(i - 7, i + 1);
+    if (w.every(v => v > mean) || w.every(v => v < mean)) {
+      for (let j = i - 7; j <= i; j++) signals[j] = Math.max(signals[j], 1);
+    }
+  }
+
+  const signalColors = ['#3b82f6', '#a855f7', '#f59e0b', '#f97316', '#ef4444'];
+
+  // ── Signal summary panel ──────────────────────────────────────────────────
+  const ruleInfo = [
+    {
+      cls: 'rule-1', color: '#ef4444', level: 4,
+      desc: 'Silny sygnał – punkt poza korytarzem NPL (±3σ)',
+    },
+    {
+      cls: 'rule-2', color: '#f97316', level: 3,
+      desc: 'Sygnał umiarkowany – 2 z 3 kolejnych wartości poza ±2σ (2/3 korytarza NPL)',
+    },
+    {
+      cls: 'rule-3', color: '#f59e0b', level: 2,
+      desc: 'Sygnał umiarkowany trwały – 3 z 5 kolejnych wartości poza ±1σ (1/3 korytarza NPL)',
+    },
+    {
+      cls: 'rule-4', color: '#a855f7', level: 1,
+      desc: 'Trend – 8 kolejnych wartości po jednej stronie średniej',
+    },
+  ];
+  const rulesEl = document.getElementById('signalRules');
+  ruleInfo.forEach(r => {
+    const tasks = raw.filter((_, i) => signals[i] === r.level).map(t => `#${t.id}`);
+    const tasksText = tasks.length ? `Zadania: ${tasks.join(', ')}` : 'Brak sygnałów';
+    rulesEl.innerHTML += `
+      <div class="signal-rule ${r.cls}">
+        <div class="badge" style="background:${r.color};"></div>
+        <div>
+          <div class="rule-desc">${r.desc}</div>
+          <div class="rule-tasks">${tasksText}</div>
+        </div>
+      </div>`;
+  });
+
   Chart.register(window['chartjs-plugin-annotation']);
 
   // ── X chart ──────────────────────────────────────────────────────────────
@@ -247,7 +401,7 @@
           backgroundColor: 'rgba(59,130,246,0.12)',
           borderWidth: 2,
           pointRadius: 5,
-          pointBackgroundColor: cts.map(v => v > median ? '#3b82f6' : '#93c5fd'),
+          pointBackgroundColor: signals.map(s => signalColors[s]),
           pointBorderColor: '#fff',
           pointBorderWidth: 1.5,
           tension: 0.3,
@@ -255,14 +409,44 @@
           order: 1,
         },
         {
-          label: 'Mediana',
-          data: Array(n).fill(median),
+          label: 'Mediana / ±1σ górna',
+          data: Array(n).fill(sigma1Upper),
           borderColor: '#f59e0b',
-          borderWidth: 2,
-          borderDash: [6, 4],
+          borderWidth: 1,
+          borderDash: [3, 5],
           pointRadius: 0,
           fill: false,
-          order: 2,
+          order: 6,
+        },
+        {
+          label: '±1σ dolna',
+          data: Array(n).fill(Math.max(0, sigma1Lower)),
+          borderColor: '#f59e0b',
+          borderWidth: 1,
+          borderDash: [3, 5],
+          pointRadius: 0,
+          fill: false,
+          order: 7,
+        },
+        {
+          label: '±2σ górna',
+          data: Array(n).fill(sigma2Upper),
+          borderColor: '#f97316',
+          borderWidth: 1,
+          borderDash: [4, 5],
+          pointRadius: 0,
+          fill: false,
+          order: 8,
+        },
+        {
+          label: '±2σ dolna',
+          data: Array(n).fill(Math.max(0, sigma2Lower)),
+          borderColor: '#f97316',
+          borderWidth: 1,
+          borderDash: [4, 5],
+          pointRadius: 0,
+          fill: false,
+          order: 9,
         },
         {
           label: 'Średnia (X̄)',
@@ -305,17 +489,18 @@
           callbacks: {
             title: (items) => {
               const i = items[0].dataIndex;
-              return `Zadanie #${raw[i].id}  (${tooltipDates[i]})`;
+              const signalLabels = ['', ' 🟣 Trend', ' 🟡 Umiark. trwały', ' 🟠 Umiarkowany', ' 🔴 Silny sygnał'];
+              return `Zadanie #${raw[i].id}  (${tooltipDates[i]})${signalLabels[signals[i]]}`;
             },
             label: (item) => {
               if (item.datasetIndex === 0) return ` Czas realizacji: ${item.raw} dni`;
-              if (item.datasetIndex === 1) return ` Mediana: ${item.raw} dni`;
-              if (item.datasetIndex === 2) return ` Średnia (X̄): ${item.raw.toFixed(1)} dni`;
-              if (item.datasetIndex === 3) return ` UNPL: ${item.raw.toFixed(1)} dni`;
-              if (item.datasetIndex === 4) return ` LNPL: ${item.raw.toFixed(1)} dni`;
-              return ` ${item.dataset.label}: ${item.raw} dni`;
+              if (item.datasetIndex === 5) return ` Średnia (X̄): ${item.raw.toFixed(1)} dni`;
+              if (item.datasetIndex === 6) return ` UNPL: ${item.raw.toFixed(1)} dni`;
+              if (item.datasetIndex === 7) return ` LNPL: ${item.raw.toFixed(1)} dni`;
+              return null;
             }
-          }
+          },
+          filter: item => [0, 5, 6, 7].includes(item.datasetIndex),
         }
       },
       scales: {
